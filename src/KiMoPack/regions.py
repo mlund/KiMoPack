@@ -13,6 +13,8 @@ needing to know whether the values happen to be sorted.
 
 import numbers
 
+from .numerics import nm_to_ev
+
 
 def normalise_cuts(cuts):
     """Return cuts as sorted, non-overlapping ``(low, high)`` pairs.
@@ -63,3 +65,42 @@ def contiguous_spans(cuts):
         spans.append((previous_high, next_low))
     spans.append((pairs[-1][1], None))
     return spans
+
+
+def cut_pairs(cuts, to_energy=False):
+    """Cut regions as sorted pairs, converted to eV when the axis is energy.
+
+    Ranges are given in nm even when the plot is drawn against energy, so they
+    have to be converted and re-sorted before they can be compared with the
+    axis they mask.
+    """
+    if cuts is None:
+        return []
+    if to_energy:
+        if isinstance(cuts[0], numbers.Number):
+            cuts = [list(nm_to_ev(cuts))]
+        else:
+            cuts = [list(nm_to_ev(pair)) for pair in cuts]
+    return normalise_cuts(cuts)
+
+
+def frame_spans(frame, cuts, to_energy=False):
+    """Yield ``(piece, is_first)`` for each run of the index between cuts.
+
+    Drawing a masked trace means drawing it in pieces. ``is_first`` marks the
+    one piece that should carry the legend entry, so a trace broken into three
+    does not appear three times in the legend.
+    """
+    pairs = cut_pairs(cuts, to_energy)
+    spans = [(None, None)] if not pairs else (
+        [(None, pairs[0][0])]
+        + [(a[1], b[0]) for a, b in zip(pairs, pairs[1:], strict=False)]
+        + [(pairs[-1][1], None)]
+    )
+    first = True
+    for start, stop in spans:
+        piece = frame.loc[start:stop]
+        if len(piece.index) == 0:
+            continue
+        yield piece, first
+        first = False

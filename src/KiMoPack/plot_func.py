@@ -83,6 +83,7 @@ if 1: #Hide imports
 # existing notebooks keep working unchanged.
 from KiMoPack.paths import check_folder, clean_double_string  # noqa: E402
 from KiMoPack import regions as _regions  # noqa: E402
+from KiMoPack.regions import frame_spans as _frame_spans  # noqa: E402
 from KiMoPack.kinetics import models as _models  # noqa: E402
 from KiMoPack.shaping import sub_ds  # noqa: E402
 from KiMoPack.chirp import apply_chirp as _apply_chirp  # noqa: E402
@@ -2740,37 +2741,10 @@ def plot_time(ds, ax = None, rel_time = None, time_width_percent = 10, ignore_ti
 				scattercut = scattercut, drop_scatter=True, bordercut = bordercut, baseunit=baseunit,
 				ignore_time_region = ignore_time_region, wave_nm_bin = wave_nm_bin, equal_energy_bin = equal_energy_bin, from_fit = from_fit)
 	if 'smoothed' in lines_are:
-		if scattercut is None:
-			smoothed=Frame_golay(ds, window = 5, order = 3,transpose=False)
-			smoothed.plot(ax = ax1, style = '-', color = colors, legend = False, lw = linewidth)
-		elif isinstance(scattercut[0], numbers.Number):#handling single scattercut
-			if equal_energy_bin is not None:
-				scattercut=[scipy.constants.h*scipy.constants.c/(a*1e-9*scipy.constants.electron_volt) for a in scattercut]
-				scattercut=scattercut[::-1]
-			smoothed=Frame_golay(ds.loc[:scattercut[0],:], window = 5, order = 3,transpose=False)
-			smoothed.plot(ax = ax1, style = '-', color = colors, legend = False, lw = linewidth)
-			smoothed=Frame_golay(ds.loc[scattercut[1]:,:], window = 5, order = 3,transpose=False)
-			smoothed.plot(ax = ax1, style = '-', color = colors, legend = False, lw = linewidth, label='_nolegend_')
-		else:#handling multiple scattercuts
-			try:
-				scattercut=flatten(scattercut)
-				if equal_energy_bin is not None:
-					scattercut=[scipy.constants.h*scipy.constants.c/(a*1e-9*scipy.constants.electron_volt) for a in scattercut]
-					scattercut=scattercut[::-1]
-				for i in range(len(scattercut)):
-					if i==0:
-						smoothed=Frame_golay(ds.loc[:scattercut[0],:], window = 5, order = 3,transpose=False)
-						smoothed.plot(ax = ax1, style = '-', color = colors, legend = False, lw = linewidth)
-					elif i<(len(scattercut)/2):
-						smoothed=Frame_golay(ds.loc[scattercut[2*i-1]:scattercut[2*i],:], window = 5, order = 3,transpose=False)
-						smoothed.plot(ax = ax1, style = '-', color = colors, legend = False, lw = linewidth, label='_nolegend_')
-					else:
-						smoothed=Frame_golay(ds.loc[scattercut[-1]:,:], window = 5, order = 3,transpose=False)
-						smoothed.plot(ax = ax1, style = '-', color = colors, legend = False, lw = linewidth, label='_nolegend_')
-			except:
-				print('printing the smoothed scatter interpolation created an error, using default')
-				smoothed=Frame_golay(window = 5, order = 3,transpose=False)
-				smoothed.plot(ax = ax1, style = '-', color = colors, legend = False, lw = linewidth)
+		for piece, first in _frame_spans(ds, scattercut, equal_energy_bin is not None):
+			smoothed = Frame_golay(piece, window = 5, order = 3, transpose = False)
+			smoothed.plot(ax = ax1, style = '-', color = colors, legend = False,
+						  lw = linewidth, **({} if first else {'label': '_nolegend_'}))
 		if not subplot:
 			leg = ax1.legend(ds,title = 'lines = smoothed', loc='best', labelspacing = 0, ncol = 2, columnspacing = 1, handlelength = 1, frameon = False)
 	elif 'data' in lines_are:
@@ -2780,27 +2754,9 @@ def plot_time(ds, ax = None, rel_time = None, time_width_percent = 10, ignore_ti
 			ax1 = ds.plot(ax = ax1, legend = False, style = '*', color = colors)
 			leg = ax1.legend(ds,labelspacing = 0, ncol = 2, columnspacing = 1, handlelength = 1, loc = 'best', frameon = False)
 	elif 'fitted' in lines_are:
-		if scattercut is None:
-			ds.plot(ax = ax1, style = '-', color = colors, legend = False, lw = linewidth, alpha = 0.7)
-		elif isinstance(scattercut[0], numbers.Number):
-			if equal_energy_bin is not None:
-				scattercut=[scipy.constants.h*scipy.constants.c/(a*1e-9*scipy.constants.electron_volt) for a in scattercut]
-			ds.loc[:scattercut[0],:].plot(ax = ax1, legend = False, style = '-', color = colors, alpha = 0.7, lw = linewidth)
-			ds.loc[scattercut[1]:,:].plot(ax = ax1, legend = False, style = '-', color = colors, alpha = 0.7, lw = linewidth, label='_nolegend_')
-		else:
-			try:
-				scattercut=flatten(scattercut)
-				if equal_energy_bin is not None:
-					scattercut=[scipy.constants.h*scipy.constants.c/(a*1e-9*scipy.constants.electron_volt) for a in scattercut]
-				for i in range(len(scattercut)):
-					if i==0:
-						ds.loc[:scattercut[0],:].plot(ax = ax1, legend = False, style = '-', color = colors, alpha = 0.7, lw = linewidth)
-					elif i<(len(scattercut)/2):
-						ds.loc[scattercut[2*i-1]:scattercut[2*i],:].plot(ax = ax1, legend = False, style = '-', color = colors, alpha = 0.7, lw = linewidth, label='_nolegend_')
-					else:
-						ds.loc[scattercut[-1]:,:].plot(ax = ax1, legend = False, style = '-', color = colors, alpha = 0.7, lw = linewidth, label='_nolegend_')
-			except:
-				ds.plot(ax = ax1, legend = False, style = '-', color = colors, alpha = 0.7, lw = linewidth)
+		for piece, first in _frame_spans(ds, scattercut, equal_energy_bin is not None):
+			piece.plot(ax = ax1, legend = False, style = '-', color = colors, alpha = 0.7,
+					   lw = linewidth, **({} if first else {'label': '_nolegend_'}))
 		if not subplot:leg = ax1.legend(ds,title = 'lines = fit', loc = 'best', labelspacing = 0, ncol = 2, columnspacing = 1, handlelength = 1, frameon = False)
 	if not subplot:
 		if text_in_legend is not None:
@@ -3018,52 +2974,18 @@ def plot1d(ds = None, wavelength = None, width = None, ax = None, subplot = Fals
 	ds = sub_ds(ds = ds, wavelength = wavelength, wavelength_bin = width, scattercut = scattercut, 
 				ignore_time_region = ignore_time_region, drop_ignore = True, from_fit = from_fit)
 	if 'smoothed' in lines_are:
-		if ignore_time_region is None:
-			smoothed=Frame_golay(ds, window = 5, order = 3)
-			smoothed.plot(ax = ax1, style = '-', color = colors, legend = False, lw = linewidth)
-		elif isinstance(ignore_time_region[0], numbers.Number):
-			smoothed=Frame_golay(ds.loc[:ignore_time_region[0],:], window = 5, order = 3)
-			smoothed.plot(ax = ax1, style = '-', color = colors, legend = False, lw = linewidth)
-			smoothed=Frame_golay(ds.loc[ignore_time_region[1]:,:], window = 5, order = 3)
-			smoothed.plot(ax = ax1, style = '-', color = colors, legend = False, lw = linewidth, label='_nolegend_')
-		else:
-			try:
-				ignore_time_region=flatten(ignore_time_region)
-				for i in range(len(ignore_time_region)/2+1):
-					if i==0:
-						smoothed=Frame_golay(ds.loc[:ignore_time_region[0],:], window = 5, order = 3,transpose=True)
-						smoothed.plot(ax = ax1, style = '-', color = colors, legend = False, lw = linewidth)
-					elif i<(len(ignore_time_region)/2):
-						smoothed=Frame_golay(ds.loc[ignore_time_region[2*i-1]:ignore_time_region[2*i],:], window = 5, order = 3,transpose=True)
-						smoothed.plot(ax = ax1, style = '-', color = colors, legend = False, lw = linewidth, label='_nolegend_')
-					else:
-						smoothed=Frame_golay(ds.loc[ignore_time_region[-1]:,:], window = 5, order = 3,transpose=True)
-						smoothed.plot(ax = ax1, style = '-', color = colors, legend = False, lw = linewidth, label='_nolegend_')
-			except:
-				smoothed=Frame_golay(ds, window = 5, order = 3)
-				smoothed.plot(ax = ax1, style = '-', color = colors, legend = False, lw = linewidth)
+		for piece, first in _frame_spans(ds, ignore_time_region):
+			smoothed = Frame_golay(piece, window = 5, order = 3)
+			smoothed.plot(ax = ax1, style = '-', color = colors, legend = False,
+						  lw = linewidth, **({} if first else {'label': '_nolegend_'}))
 		
 	elif 'data' in lines_are:
 		if subplot:ds.plot(ax = ax1, style = '*', color = colors, legend = False, zorder = 0, label='_nolegend_')
 		else:	   ds.plot(ax = ax1, style = '*', color = colors, legend = False)
 	elif 'fitted' in lines_are:
-		if ignore_time_region is None:
-			ds.plot(ax = ax1, style='-', color = colors, legend = False, lw = linewidth)
-		elif isinstance(ignore_time_region[0], numbers.Number):
-			ds.loc[:ignore_time_region[0],:].plot(ax = ax1, style='-', color = colors, legend = False, lw = linewidth)
-			ds.loc[ignore_time_region[1]:,:].plot(ax = ax1, style='-', color = colors, legend = False, lw = linewidth, label='_nolegend_')
-		else:
-			try:
-				ignore_time_region=flatten(ignore_time_region)
-				for i in range(len(ignore_time_region)/2+1):
-					if i==0:
-						ds.loc[:ignore_time_region[0],:].plot(ax = ax1, style='-', color = colors, legend = False, lw = linewidth)
-					elif i<(len(ignore_time_region)/2):
-						ds.loc[ignore_time_region[2*i-1]:ignore_time_region[2*i],:].plot(ax = ax1, style='-', color = colors, legend = False, lw = linewidth, label='_nolegend_')
-					else:
-						ds.loc[ignore_time_region[-1]:,:].plot(ax = ax1, style='-', color = colors, legend = False, lw = linewidth, label='_nolegend_')
-			except:
-				ds.plot(ax = ax1, style='-', color = colors, legend = False, lw = linewidth)
+		for piece, first in _frame_spans(ds, ignore_time_region):
+			piece.plot(ax = ax1, style='-', color = colors, legend = False,
+					   lw = linewidth, **({} if first else {'label': '_nolegend_'}))
 	#Legend
 	if not subplot:
 		handles, labels = ax1.get_legend_handles_labels()

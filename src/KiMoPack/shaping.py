@@ -15,18 +15,10 @@ import numbers
 
 import numpy as np
 import pandas
-import scipy.constants
 from scipy.stats import binned_statistic
 
-from .numerics import find_nearest_index
+from .numerics import find_nearest_index, nm_to_ev
 from .regions import normalise_cuts
-
-
-def nm_to_ev(wavelength_nm):
-    """Photon energy in eV for a wavelength in nm."""
-    return scipy.constants.h * scipy.constants.c / (
-        np.asarray(wavelength_nm, dtype=float) * 1e-9 * scipy.constants.electron_volt
-    )
 
 
 def _bin_axis(ds, x, y, width, what):

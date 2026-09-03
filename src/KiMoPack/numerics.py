@@ -7,6 +7,7 @@ reimplementing interpolation and smoothing inline.
 
 import numpy as np
 import pandas
+import scipy.constants
 import scipy.stats
 from scipy.signal import savgol_filter
 from scipy.special import erf
@@ -134,6 +135,17 @@ def shift(df, name=None, shift=None):
 def norm(df):
     """Scale every column onto the interval 0 to 1."""
     return df.apply(lambda x: (x - np.min(x)) / (np.max(x) - np.min(x)))
+
+
+def nm_to_ev(wavelength_nm):
+    """Photon energy in eV for a wavelength in nm.
+
+    The two axes run in opposite directions, so a range given in nm comes back
+    reversed and usually has to be re-sorted.
+    """
+    return scipy.constants.h * scipy.constants.c / (
+        np.asarray(wavelength_nm, dtype=float) * 1e-9 * scipy.constants.electron_volt
+    )
 
 
 def rise(x, sigma=0.1, begin=0):
