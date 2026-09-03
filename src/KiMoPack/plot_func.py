@@ -90,6 +90,7 @@ from KiMoPack.chirp import find_chirp_sparse  # noqa: E402
 from KiMoPack.sparse import is_sparse_wavelength, read_sparse_SIA  # noqa: E402
 from KiMoPack.kinetics.amplitudes import fill_int  # noqa: E402
 from KiMoPack.kinetics.models import build_c  # noqa: E402
+from KiMoPack.kinetics.simulate import simulate as _simulate  # noqa: E402
 from KiMoPack.kinetics.parameters import (  # noqa: E402
 	par_to_pardf,
 	pardf_to_par,
@@ -3817,263 +3818,65 @@ def err_func(paras, ds, mod = 'paral', final = False, log_fit = False, dump_para
 		if True(Default) writes the currently varried values to screen
 
 	'''
-	time_label=ds.index.name
-	energy_label=ds.columns.name
-	pardf=par_to_pardf(paras)
-	global start_time
+	pardf = par_to_pardf(paras)
 	if log_fit:
-		pardf.loc[pardf.is_rate,'value']=pardf.loc[pardf.is_rate,'value'].apply(lambda x: 10**x)
-	if isinstance(mod,type('hello')):#did we use a build in model?
-		times=ds.index.values.astype('float')
-		times_ori=times.copy()	
-		if pulse_sample is not None:
-			t0=float(pardf.loc['t0','value'])
-			resolution=float(pardf.loc['resolution','value'])
-			if hasattr(pulse_sample,'__iter__'):pump_region=pulse_sample
-			else:
-				pump_region=np.linspace(t0-4*resolution,t0+4*resolution,20)
-			if pump_region.max()<times_ori.min():
-				connection_region=np.arange(pump_region[-1],times_ori.min(),resolution/10)
-				times=np.unique(np.sort(np.hstack((pump_region,connection_region,times_ori))))
-			else:
-				times=np.unique(np.sort(np.hstack((pump_region,times_ori))))
-		if sub_sample is not None:
-			listen=[times]
-			for i in range(1,sub_sample,1):
-				listen.append(times_ori[:-1]+((times_ori[1:]-times_ori[:-1])*i/sub_sample))
-			times=np.unique(np.hstack(listen))
-			times.sort()
-		if final:#for final we really want the model
-			c=build_c(times=times,mod=mod,pardf=pardf)
-		elif 'full_consecutive' in mod:# here we force the full consecutive modelling
-			c=build_c(times=times,mod=mod,pardf=pardf)
-		elif 'full_sequential' in mod:
-			c=build_c(times=times,mod=mod,pardf=pardf)											 
-		else:#here we "bypass" the full consecutive and optimize the rates with the decays
-			c=build_c(times=times,mod='paral',pardf=pardf)
-		c=c.loc[times_ori,:]
-		c.index.name=time_label
-		if ext_spectra is None:
-			re=fill_int(ds=ds,c=c, return_shapes = dump_shapes)
-		else:
-			if 'ext_spectra_shift' in list(pardf.index.values):
-				ext_spectra.index=ext_spectra.index.values+pardf.loc['ext_spectra_shift','value']
-				ext_spectra=rebin(ext_spectra,ds.columns.values.astype(float))
-			else:
-				ext_spectra=rebin(ext_spectra,ds.columns.values.astype(float))
-				
-			if "ext_spectra_scale" in list(pardf.index.values):
-				ext_spectra=ext_spectra*pardf.loc['ext_spectra_scale','value']
-			c_temp=c.copy()
-			for col in ext_spectra.columns.values:
-				A,B=np.meshgrid(c.loc[:,col].values,ext_spectra.loc[:,col].values)
-				C=pandas.DataFrame((A*B).T,index=c.index,columns=ext_spectra.index.values)
-				ds=ds-C
-				if "ext_spectra_guide" not in list(pardf.index.values):
-					c_temp.drop(col,axis=1,inplace=True)
-			re=fill_int(ds=ds,c=c_temp, return_shapes = dump_shapes)
-		if final:
-			if ext_spectra is not None:
-				for col in ext_spectra.columns.values:
-					if "ext_spectra_guide" in list(pardf.index.values):
-						re['DAC'][col]=re['DAC'][col]+ext_spectra.loc[:,col].values
-					else:
-						re['DAC'][col]=ext_spectra.loc[:,col].values
-						re['c'][col]=c.loc[:,col].values
-					A,B=np.meshgrid(c.loc[:,col].values,ext_spectra.loc[:,col].values)
-					C=pandas.DataFrame((A*B).T,index=c.index,columns=ext_spectra.index.values)
-					re['A']=re['A']+C
-					re['AC']=re['AC']+C
-			re['r2']=1-re['error']/((re['A']-re['A'].mean().mean())**2).sum().sum()
-			if dump_paras:
-				try:
-					pardf.loc['error','value']=re['error']
-				except:
-					pass
-				try:
-					pardf.loc['r2','value']=re['r2']
-				except:
-					pass
-				try:
-					if filename is None:
-						store_name='minimal_dump_paras.par'
-					else:
-						store_name='minimal_dump_paras_%s.par'%filename
-					min_df=pandas.read_csv(store_name,sep=',',header=None,skiprows=1)
-					if float(min_df.iloc[-1,1])>float(re['error']):
-						pardf.to_csv(store_name)
-				except:
-					pass
-				if filename is None:
-					store_name='dump_paras.par'
-				else:
-					store_name='dump_paras_%s.par'%filename
-				pardf.to_csv(store_name)			
-			return re
-		else:
-			if dump_paras:
-				try:
-					pardf.loc['error','value']=re['error']
-				except:
-					pass
-				try:
-					pardf.loc['r2','value']=re['r2']
-				except:
-					pass
-				try:
-					if filename is None:
-						store_name='minimal_dump_paras.par'
-					else:
-						store_name='minimal_dump_paras_%s.par'%filename
-					min_df=pandas.read_csv(store_name,sep=',',header=None,skiprows=1)
-					if float(min_df.iloc[-1,1])>float(re['error']):
-						pardf.to_csv(store_name)
-				except:
-					pass
-				if filename is None:
-					store_name='dump_paras.par'
-				else:
-					store_name='dump_paras_%s.par'%filename
-				pardf.to_csv(store_name)
-			if mod not in ['paral','exponential','consecutive']:
-				if write_paras:
-					print('----------------------------------')
-					print(pardf)
-				else:
-					if np.abs(tm.time()-start_time)>10:
-						start_time=tm.time()
-						print(re['error'])
-			if dump_shapes:
-				if ext_spectra is not None:
-					for col in ext_spectra.columns.values:
-						if "ext_spectra_guide" in list(pardf.index.values):
-							re['DAC'][col]=re['DAC'][col]+ext_spectra.loc[:,col].values
-						else:
-							re['DAC'][col]=ext_spectra.loc[:,col].values
-							re['c'][col]=c.loc[:,col].values
-				re['c'].to_csv(path_or_buf=filename + '_c')
-				re['DAC'].to_csv(path_or_buf=filename + '_DAC')
-			return re['error']
-	else:# Nope we used an external model (sorry for the duplication)
-		times=ds.index.values.astype('float')
-		times_ori=times.copy()
-		if pulse_sample is not None:
-			t0=float(pardf.loc['t0','value'])
-			resolution=float(pardf.loc['resolution','value'])
-			if hasattr(pulse_sample,'__iter__'):pump_region=pulse_sample
-			else:
-				pump_region=np.linspace(t0-4*resolution,t0+4*resolution,20)
-			if pump_region.max()<times_ori.min():
-				connection_region=np.arange(pump_region[-1],times_ori.min(),resolution/10)
-				times=np.unique(np.sort(np.hstack((pump_region,connection_region,times_ori))))
-			else:
-				times=np.unique(np.sort(np.hstack((pump_region,times_ori))))
-		if sub_sample is not None:
-			listen=[times]
-			for i in range(1,sub_sample,1):
-				listen.append(times_ori[:-1]+((times_ori[1:]-times_ori[:-1])*i/sub_sample))
-			times=np.unique(np.hstack(listen))
-			times.sort()
-		try:
-			c=mod(times=times,pardf=pardf.loc[:,'value'])
-		except Exception as e:
-			print(e)
-		c=c.loc[times_ori,:]
-		if ext_spectra is None:
+		# The optimiser searches log10 of the rates; the model wants them linear.
+		pardf.loc[pardf.is_rate,'value'] = pardf.loc[pardf.is_rate,'value'].apply(lambda x: 10**x)
+
+	re = _simulate(ds, pardf, mod, final=final, sub_sample=sub_sample,
+				   pulse_sample=pulse_sample, ext_spectra=ext_spectra,
+				   return_shapes=dump_shapes)
+
+	if dump_paras:
+		_dump_parameters(pardf, re, filename)
+	if final:
+		return re
+
+	if not isinstance(mod, str) or mod not in ['paral','exponential','consecutive']:
+		_report_progress(pardf, re, write_paras, quiet_seconds=10 if isinstance(mod, str) else 30)
+	if dump_shapes:
+		re['c'].to_csv(path_or_buf=filename + '_c')
+		re['DAC'].to_csv(path_or_buf=filename + '_DAC')
+	return re['error']
+
+
+def _dump_parameters(pardf, re, filename):
+	'''Append the current parameters to disk so a long fit can be inspected or resumed.
+
+	Two files: a running log of every step, and the best set seen so far.
+	Failures here are ignored on purpose — losing the log must never abort a fit
+	that has been running for hours.
+	'''
+	for key in ['error', 'r2']:
+		if key in re:
 			try:
-				re=fill_int(ds=ds,c=c, return_shapes = dump_shapes)
-			except Exception as e:
-				print(e)
-		else:
-			ext_spectra.sort_index(inplace=True)
-			if 'ext_spectra_shift' in list(pardf.index.values):
-				ext_spectra.index=ext_spectra.index.values+pardf.loc['ext_spectra_shift','value']
-				ext_spectra=rebin(ext_spectra,ds.columns.values.astype(float))
-			else:
-				ext_spectra=rebin(ext_spectra,ds.columns.values.astype(float))
-			if "ext_spectra_scale" in list(pardf.index.values):
-				ext_spectra=ext_spectra*pardf.loc['ext_spectra_scale','value']
-			c_temp=c.copy()
-			for col in ext_spectra.columns.values:
-				A,B=np.meshgrid(c.loc[:,col].values,ext_spectra.loc[:,col].values)
-				C=pandas.DataFrame((A*B).T,index=c.index,columns=ext_spectra.index.values)
-				ds=ds-C
-				if "ext_spectra_guide" not in list(pardf.index.values):
-					c_temp.drop(col,axis=1,inplace=True)
-			re=fill_int(ds=ds,c=c_temp, return_shapes = dump_shapes)
-		if final:
-			if len(re.keys())<3:#
-				print('error in the calculation')
-				return re
-			if ext_spectra is None:
-				re['DAC'].columns=c.columns.values
-				re['c'].columns=c.columns.values
-			else:
-				re['DAC'].columns=c_temp.columns.values
-				re['c'].columns=c_temp.columns.values
-				for col in ext_spectra.columns.values:
-					if "ext_spectra_guide" in list(pardf.index.values):
-						re['DAC'][col]=re['DAC'][col]+ext_spectra.loc[:,col].values
-					else:
-						re['DAC'][col]=ext_spectra.loc[:,col].values
-						re['c'][col]=c.loc[:,col].values
-					A,B=np.meshgrid(c.loc[:,col].values,ext_spectra.loc[:,col].values)
-					C=pandas.DataFrame((A*B).T,index=c.index,columns=ext_spectra.index.values)
-					re['A']=re['A']+C
-					re['AC']=re['AC']+C
-			re['r2']=1-re['error']/((re['A']-re['A'].mean().mean())**2).sum().sum()
-			if dump_paras:
-				try:
-					pardf.loc['error','value']=re['error']
-				except:
-					pass
-				try:
-					min_df=pandas.read_csv('minimal_dump_paras.par',sep=',',header=None,skiprows=1)
-					if float(min_df.iloc[-1,1])>float(re['error']):
-						pardf.to_csv('minimal_dump_paras.par')
-				except:
-					pass
-				try:
-					pardf.to_csv('dump_paras.par')
-				except:
-					print(pardf)
-			return re
-		else:
-			if dump_paras:
-				try:
-					pardf.loc['error','value']=re['error']
-				except:
-					pass
-				try:
-					min_df=pandas.read_csv('minimal_dump_paras.par',sep=',',header=None,skiprows=1)
-					if float(min_df.iloc[-1,1])>float(re['error']):
-						pardf.to_csv('minimal_dump_paras.par')
-				except Exception as e:
-					print(e)
-					pass
-				try:
-					pardf.to_csv('dump_paras.par')
-				except Exception as e:
-					print(e)
-					print(pardf)
-			if write_paras:
-				print('----------------------------------')
-				print(pardf)
-			else:
-				if np.abs(tm.time()-start_time)>30:
-					start_time=tm.time()
-					print(re['error'])
-			if dump_shapes:
-				if ext_spectra is not None:
-					for col in ext_spectra.columns.values:
-						if "ext_spectra_guide" in list(pardf.index.values):
-							re['DAC'][col]=re['DAC'][col]+ext_spectra.loc[:,col].values
-						else:
-							re['DAC'][col]=ext_spectra.loc[:,col].values
-							re['c'][col]=c.loc[:,col].values
-				re['c'].to_csv(path_or_buf=filename + '_c')
-				re['DAC'].to_csv(path_or_buf=filename + '_DAC')
-			return re['error']
+				pardf.loc[key,'value'] = re[key]
+			except Exception:
+				pass
+	suffix = '' if filename is None else '_%s' % filename
+	best_name = 'minimal_dump_paras%s.par' % suffix
+	try:
+		previous = pandas.read_csv(best_name, sep=',', header=None, skiprows=1)
+		if float(previous.iloc[-1,1]) > float(re['error']):
+			pardf.to_csv(best_name)
+	except Exception:
+		# No previous best, or it is unreadable; the running log below still lands.
+		pass
+	try:
+		pardf.to_csv('dump_paras%s.par' % suffix)
+	except Exception:
+		print(pardf)
+
+
+def _report_progress(pardf, re, write_paras, quiet_seconds):
+	'''Show that a slow fit is still moving, without flooding the notebook.'''
+	global start_time
+	if write_paras:
+		print('----------------------------------')
+		print(pardf)
+	elif np.abs(tm.time() - start_time) > quiet_seconds:
+		start_time = tm.time()
+		print(re['error'])
 
 
 def err_func_multi(paras, mod = 'paral', final = False, log_fit = False, multi_project = None, 
