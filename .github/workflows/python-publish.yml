@@ -14,6 +14,9 @@ jobs:
 
   publish:
     needs: test
+    # Forks run the tests but must never attempt an upload: the credential is
+    # not theirs, and a tag copied along with the fork should not ship anything.
+    if: github.repository == 'erdzeichen/KiMoPack'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
