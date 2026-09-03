@@ -72,7 +72,9 @@ def build_parallel(times, pardf, sub_steps=None):
     if _structural(pardf, "background"):
         c["background"] = 1
     if _structural(pardf, "infinite"):
-        c["infinite"] = rise(x=times, sigma=resolution, begin=t0)
+        # Named to match the sequential model: the fit reports species by
+        # these labels, and they end up in figures and exported spectra.
+        c["Non Decaying"] = rise(x=times, sigma=resolution, begin=t0)
     return c
 
 

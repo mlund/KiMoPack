@@ -3873,20 +3873,6 @@ def err_func(paras, ds, mod = 'paral', final = False, log_fit = False, dump_para
 					c_temp.drop(col,axis=1,inplace=True)
 			re=fill_int(ds=ds,c=c_temp, return_shapes = dump_shapes)
 		if final:
-			labels=list(re['DAC'].columns.values)
-			changed=True
-			if 'background' in list(pardf.index.values):
-				if 'infinite' in list(pardf.index.values):
-					labels[-2]='Non Decaying'
-				labels[-1]='background'
-			else:
-				if 'infinite' in list(pardf.index.values):
-					labels[-1]='Non Decaying'
-				else:
-					changed=False
-			if changed:
-				re['DAC'].columns=labels
-				re['c'].columns=labels
 			if ext_spectra is not None:
 				for col in ext_spectra.columns.values:
 					if "ext_spectra_guide" in list(pardf.index.values):
@@ -4342,21 +4328,6 @@ def err_func_multi(paras, mod = 'paral', final = False, log_fit = False, multi_p
 		
 		if final:
 			if isinstance(mod,type('hello')):#did we use a build in model?	
-				labels=list(re['DAC'].columns.values)
-				changed=True
-				if 'background' in list(pardf.index.values):
-					if 'infinite' in list(pardf.index.values):
-						labels[-1]='Non Decaying'
-						labels[-2]='background'
-					else:
-						labels[-1]='background'
-				else:
-					if 'infinite' in list(pardf.index.values):
-						labels[-1]='Non Decaying'
-					else:changed=False
-				if changed:
-					re['DAC'].columns=labels
-					re['c'].columns=labels
 				if ext_spectra is not None:
 					for col in ext_spectra.columns.values:
 						if "ext_spectra_guide" in list(pardf.index.values):
@@ -4479,22 +4450,6 @@ def err_func_multi(paras, mod = 'paral', final = False, log_fit = False, multi_p
 					re=fill_int(ds=ds,c=c_temp, return_shapes = dump_shapes)
 				if final:
 					if i==0:
-						labels=list(re['DAC'].columns.values)
-						changed=True
-						if 'background' in list(pardf.index.values):
-							if 'infinite' in list(pardf.index.values):
-								labels[-1]='Non Decaying'
-								labels[-2]='background'
-							else:
-								labels[-1]='background'
-						else:
-							if 'infinite' in list(pardf.index.values):
-								labels[-1]='Non Decaying'
-			   
-							else:changed=False
-						if changed:
-							re['DAC'].columns=labels
-							re['c'].columns=labels
 						if ext_spectra is not None:
 							for col in ext_spectra.columns.values:
 								if "ext_spectra_guide" in list(pardf.index.values):

@@ -73,7 +73,15 @@ class ParallelModel(NumericTestCase):
         times = np.linspace(-1.0, 100.0, 400)
         c = models.build_c(times=times, mod="paral", pardf=_pardf([1 / 3.0], extra=["infinite"]))
         late = times > 2.0
-        self.assertAllClose(c["infinite"].values[late], np.ones(late.sum()), rtol=1e-6)
+        self.assertAllClose(c["Non Decaying"].values[late], np.ones(late.sum()), rtol=1e-6)
+
+    def test_both_models_name_the_non_decaying_species_alike(self):
+        """The label reaches figures and exports, so it cannot depend on the model."""
+        times = np.linspace(-1.0, 40.0, 200)
+        pardf = _pardf([1 / 3.0], extra=["infinite"])
+        parallel = models.build_c(times=times, mod="paral", pardf=pardf)
+        sequential = models.build_c(times=times, mod="consecutive", pardf=pardf, sub_steps=5)
+        self.assertEqual(list(parallel.columns)[-1], list(sequential.columns)[-1])
 
     def test_every_alias_gives_the_same_answer(self):
         times = np.linspace(-1.0, 20.0, 100)
