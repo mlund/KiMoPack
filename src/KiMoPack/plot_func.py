@@ -2,6 +2,7 @@
 version = "7.14.1"
 Copyright = '@Jens Uhlig'
 if 1: #Hide imports	
+	from difflib import get_close_matches as _get_close_matches
 	import os
 	import sys
 	import pandas
@@ -81,6 +82,8 @@ if 1: #Hide imports
 # Numeric helpers live in KiMoPack.numerics; they are re-exported here so
 # existing notebooks keep working unchanged.
 from KiMoPack.paths import check_folder, clean_double_string  # noqa: E402
+from KiMoPack import regions as _regions  # noqa: E402
+from KiMoPack.kinetics import models as _models  # noqa: E402
 from KiMoPack.shaping import sub_ds  # noqa: E402
 from KiMoPack.chirp import find_chirp_sparse  # noqa: E402
 from KiMoPack.sparse import is_sparse_wavelength, read_sparse_SIA  # noqa: E402
@@ -4660,6 +4663,61 @@ def err_func_multi(paras, mod = 'paral', final = False, log_fit = False, multi_p
 
 
 class TA():	# object wrapper for the whole
+
+	#: Every setting and result TA recognises. Assigning a name that is not
+	#: here, but is a near miss for one that is, is treated as a typo: the old
+	#: behaviour was to accept it silently and simply have no effect, which
+	#: cost users whole afternoons. Names that resemble nothing known are
+	#: allowed through, so attaching your own metadata still works.
+	_KNOWN_ATTRIBUTES = frozenset({
+		'background_par', 'baseunit', 'bordercut', 'chirp_file', 'cmap', 'colors',
+		'combined_fitcoeff', 'data_type', 'ds', 'ds_ori', 'equal_energy_bin',
+		'error_matrix_amplification', 'factor', 'figure_path', 'filename', 'fitcoeff',
+		'halfsize', 'ignore_time_region', 'intensity_range', 'legend_inside', 'line_colors',
+		'linscale', 'lintresh', 'log_fit', 'log_scale', 'mod', 'multi_project',
+		'multi_projects', 'name', 'opt_chirp', 'par', 'par_fit', 'path', 're', 'rel_time',
+		'rel_wave', 'save_figures_to_folder', 'scattercut', 'time_bin', 'time_width_percent',
+		'timelimits', 'units', 'values', 'wave_nm_bin', 'wavelength_bin'})
+
+	#: Settings that crop an axis and must be a single ascending [low, high].
+	_RANGE_SETTINGS = frozenset({'timelimits', 'bordercut'})
+	#: Settings that blank regions: one [low, high] or a list of them.
+	_REGION_SETTINGS = frozenset({'scattercut', 'ignore_time_region'})
+
+	def __setattr__(self, name, value):
+		if name not in self._KNOWN_ATTRIBUTES and name not in self.__dict__:
+			close = _get_close_matches(name, self._KNOWN_ATTRIBUTES, n=3, cutoff=0.85)
+			if close:
+				raise AttributeError(
+					'%s has no setting %r. Did you mean %s?'
+					% (type(self).__name__, name, ' or '.join(repr(c) for c in close)))
+		self._check_setting(name, value)
+		object.__setattr__(self, name, value)
+
+	def _check_setting(self, name, value):
+		'''Reject shapes that would fail far from the assignment that caused them.'''
+		if value is None:
+			return
+		if name in self._RANGE_SETTINGS:
+			if not hasattr(value, '__len__') or len(value) != 2:
+				raise ValueError('%s must be a [low, high] pair, got %r' % (name, value))
+			low, high = value
+			if low is not None and high is not None and low > high:
+				raise ValueError(
+					'%s must run low to high, got %r. Slicing in reverse selects nothing.'
+					% (name, value))
+		elif name in self._REGION_SETTINGS:
+			try:
+				_regions.normalise_cuts(value)
+			except (TypeError, ValueError) as problem:
+				raise ValueError(
+					'%s must be a [low, high] pair or a list of them, got %r (%s)'
+					% (name, value, problem)) from None
+		elif name == 'mod' and not callable(value):
+			# Raises listing the built-in models, which are otherwise only
+			# discoverable from a PDF.
+			_models.resolve_model(value)
+
 	def __init__(self, filename=None, path = None, sep = "\\t", decimal = '.', index_is_energy = False, transpose = False,
 				sort_indexes = False, divide_times_by = None, shift_times_by = None, external_time = None, external_wave = None, 
 				use_same_name = True, data_type = None , units = None, baseunit = None, ds = None, conversion_function = None):		 
@@ -5316,7 +5374,7 @@ class TA():	# object wrapper for the whole
 		self.lintresh = 0.3 if not hasattr(self, 'lintresh') else self.lintresh
 		self.log_fit = False if not hasattr(self, 'log_fit') else self.log_fit
 		self.ignore_time_region = None if not hasattr(self, 'ignore_time_region') else self.ignore_time_region
-		self.error_matrix_amplification = 10 if not hasattr(self, 'error_matrix_amplificatio') else self.error_matrix_amplification
+		self.error_matrix_amplification = 10 if not hasattr(self, 'error_matrix_amplification') else self.error_matrix_amplification
 		try:
 			self.rel_wave = self.rel_wave
 		except:
@@ -5325,7 +5383,7 @@ class TA():	# object wrapper for the whole
 		
 		try:# for sparse wavelength grids, default to actual probe wavelengths
 			if len(self.ds.columns) <= 20:
-				self.relwave = list(self.ds.columns.values.astype(float))
+				self.rel_wave = list(self.ds.columns.values.astype(float))
 				self.wavelength_bin = 0.0
 		except Exception:
 			pass

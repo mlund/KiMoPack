@@ -10,8 +10,9 @@ import unittest
 
 import numpy as np
 
-#: Tests reading the repository's real (multi-megabyte) datasets. A full fit on
-#: one of those takes seconds to minutes, so they stay off unless asked for.
+#: Integration tests that read the multi-megabyte experiments committed to the
+#: repository, rather than generating their data. Kept behind a switch so the
+#: default run stays independent of those files and of how long a real fit takes.
 slow = unittest.skipUnless(
     os.environ.get("KIMOPACK_SLOW_TESTS"),
     "set KIMOPACK_SLOW_TESTS=1 to run tests against the bundled datasets",
