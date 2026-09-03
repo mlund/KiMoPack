@@ -85,6 +85,7 @@ from KiMoPack.paths import check_folder, clean_double_string  # noqa: E402
 from KiMoPack import regions as _regions  # noqa: E402
 from KiMoPack.kinetics import models as _models  # noqa: E402
 from KiMoPack.shaping import sub_ds  # noqa: E402
+from KiMoPack.chirp import apply_chirp as _apply_chirp  # noqa: E402
 from KiMoPack.chirp import find_chirp_sparse  # noqa: E402
 from KiMoPack.sparse import is_sparse_wavelength, read_sparse_SIA  # noqa: E402
 from KiMoPack.kinetics.amplitudes import fill_int  # noqa: E402
@@ -3486,20 +3487,15 @@ def Fix_Chirp(ds, save_file = None, scattercut = None, intensity_range = 5e-3,
 		
 		''' 
 	ds=ds.fillna(0)
-	if fitcoeff is not None:#we loaded a previous project this is a dublication, but I'm currently to lazy to make this tighter
+	if fitcoeff is not None:  # replaying a correction stored with a project
 		if isinstance(fitcoeff, str):
 			fitcoeff = np.array(fitcoeff.split(','), dtype=float)
-		if len(fitcoeff) == 6:			# old-style 6-param
+		# Copy before normalising: the caller keeps using its own coefficients.
+		fitcoeff = list(fitcoeff)
+		if len(fitcoeff) == 6:  # projects saved before the last two merged
 			fitcoeff[-2] = fitcoeff[-2] - fitcoeff[-1]
 			fitcoeff = fitcoeff[:5]
-		wl = ds.columns.values.astype(float)
-		time = ds.index.values.astype(float)
-		for i in range(len(wl)):
-			shift = np.polyval(fitcoeff, wl[i])
-			f = interp1d(time - shift, ds.values[:, i],
-						 bounds_error=False, fill_value=0)
-			ds.values[:, i] = f(time)
-		return ds
+		return _apply_chirp(ds, fitcoeff)
 
 	if is_sparse_wavelength(ds):
 		n_wl = len(ds.columns)
@@ -5895,7 +5891,7 @@ class TA():	# object wrapper for the whole
 				self.ds=self.ds_ori
 		  
 				print('something went wrong with the provided fitcoeff. This should be either a list/array with 5-6 parameter or the object should contain the parameter')
-				print('fitcoeff is currently:' + fitcoeff)
+				print('fitcoeff is currently: %s' % (fitcoeff,))
 		else:
 			try:
 				if chirp_file is None:
@@ -7694,6 +7690,11 @@ class TA():	# object wrapper for the whole
 				except:
 					print('File exists but can not be deleted')
 		re_switch = False
+		# pandas writes through PyTables, which opens the file a second time.
+		# When h5py and PyTables link different HDF5 builds that second open is
+		# refused by the file lock, so these are written once the handle below
+		# has closed, next to the other DataFrame writes.
+		deferred_frames = {}
 		with h5py.File(hdf5_name, 'w') as f:
 			for key in self.__dict__.keys():
 				if key == 'mod':
@@ -7793,7 +7794,7 @@ class TA():	# object wrapper for the whole
 					df['is_rate']=df['is_rate'].astype(bool)
 					df['vary']=df['vary'].astype(bool)
 					df['expr']=df['expr'].apply(lambda x:'%s'%x)
-					df.to_hdf(str(hdf5_name.resolve()), key=key, append=True, mode='r+', format='t')
+					deferred_frames[key] = df
 				else:
 					data = self.__dict__[key]
 					if data is None:
@@ -7821,6 +7822,8 @@ class TA():	# object wrapper for the whole
 							f.create_dataset(name='fitcoeff', data=fitcoeff)
 					except:
 						pass
+		for key, df in deferred_frames.items():
+			df.to_hdf(str(hdf5_name.resolve()), key=key, append=True, mode='r+', format='t')
 		self.ds_ori.to_hdf(str(hdf5_name.resolve()), key='ds_ori', append=True, mode='r+', format='t')#save_raw_data
 		if re_switch:
 			#print('re-switched')

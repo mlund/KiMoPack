@@ -7,6 +7,7 @@ wavelength, and correcting for it is a prerequisite for any global fit.
 
 import numpy as np
 
+import KiMoPack.plot_func as pf
 from KiMoPack import chirp
 
 from .support import NumericTestCase
@@ -106,3 +107,50 @@ class FindChirpSparse(NumericTestCase):
         _, fitcoeff, t0_values = chirp.find_chirp_sparse(flat, plot=False)
         self.assertEqual(len(t0_values), 0)
         self.assertEqual(len(fitcoeff), 5)
+
+
+class ReplayingAStoredCorrection(NumericTestCase):
+    """Fix_Chirp re-applying coefficients saved with a project.
+
+    This path runs on every project load, and it wrote through
+    ``DataFrame.values``, which pandas makes read-only under copy-on-write.
+    """
+
+    def setUp(self):
+        self.ds, self.coeffs = make_chirped_dataset(coeffs=(0.0, 0.0, 0.0, -4e-3, 2.2))
+
+    def test_replay_actually_corrects_the_data(self):
+        """It used to return the input untouched.
+
+        The correction was written into ``DataFrame.values``, which hands back
+        a fresh array each time it is read, so every write landed in a
+        temporary that was discarded. Loading a saved project restored the
+        coefficients, reported success, and left the data uncorrected.
+        """
+        replayed = pf.Fix_Chirp(self.ds, fitcoeff=list(self.coeffs))
+        moved = (abs(replayed.values - self.ds.fillna(0).values) > 1e-12).sum()
+        self.assertGreater(moved, replayed.size // 2,
+                           "replaying a stored chirp must change the data")
+
+    def test_replay_matches_the_tested_correction(self):
+        replayed = pf.Fix_Chirp(self.ds, fitcoeff=list(self.coeffs))
+        self.assertAllClose(replayed.values, chirp.apply_chirp(self.ds, self.coeffs).values)
+
+    def test_replay_works_on_a_read_only_frame(self):
+        """Frames read back from HDF5 do not own their data."""
+        frozen = self.ds.copy()
+        frozen.values.flags.writeable = False
+        replayed = pf.Fix_Chirp(frozen, fitcoeff=list(self.coeffs))
+        self.assertEqual(replayed.shape, self.ds.shape)
+
+    def test_six_coefficient_projects_still_load(self):
+        """Older projects stored six coefficients; the last two collapse into one."""
+        old_style = [0.0, 0.0, 0.0, -4e-3, 2.2, 0.2]
+        handed_in = list(old_style)
+        pf.Fix_Chirp(self.ds, fitcoeff=old_style)
+        self.assertEqual(old_style, handed_in, "the caller's coefficients were modified")
+
+    def test_replay_does_not_modify_the_input(self):
+        before = self.ds.copy()
+        pf.Fix_Chirp(self.ds, fitcoeff=list(self.coeffs))
+        self.assertUnchanged(self.ds, before)

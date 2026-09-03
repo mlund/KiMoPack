@@ -7,7 +7,10 @@ the main interface, so a mistyped or misshapen assignment has to be caught at
 the point it is made rather than surfacing as a strange plot much later.
 """
 
+import tempfile
 import unittest
+
+import lmfit
 
 import KiMoPack.plot_func as pf
 
@@ -112,3 +115,49 @@ class Defaults(unittest.TestCase):
         ta = _project(ds)
         self.assertEqual(sorted(ta.rel_wave), sorted(float(c) for c in ds.columns))
         self.assertEqual(ta.wavelength_bin, 0.0)
+
+
+class SaveAndReload(unittest.TestCase):
+    """Round-tripping a project through HDF5.
+
+    Saving used to fail as soon as a parameter set existed, because the
+    parameter table was written while the file was still open for writing.
+    """
+
+    def test_a_project_without_parameters_round_trips(self):
+        ds, _ = make_dataset()
+        ta = pf.TA("synthetic", ds=ds)
+        ta.timelimits = [0.5, 100]
+        with tempfile.TemporaryDirectory() as tmp:
+            ta.Save_project(filename="plain.hdf5", path=tmp)
+            back = pf.TA("plain.hdf5", path=tmp)
+        self.assertEqual(back.ds_ori.shape, ds.shape)
+
+    def test_a_project_with_parameters_round_trips(self):
+        ds, _ = make_dataset()
+        ta = pf.TA("synthetic", ds=ds)
+        ta.par = lmfit.Parameters()
+        ta.par.add("k0", value=0.5, min=0.0, max=10.0)
+        ta.par.add("k1", value=0.02, vary=False)
+        with tempfile.TemporaryDirectory() as tmp:
+            ta.Save_project(filename="withpar.hdf5", path=tmp)
+            back = pf.TA("withpar.hdf5", path=tmp)
+        self.assertIn("k0", back.par)
+        self.assertAlmostEqual(back.par["k0"].value, 0.5)
+        self.assertAlmostEqual(back.par["k0"].max, 10.0)
+        self.assertFalse(back.par["k1"].vary)
+
+    def test_settings_survive_the_round_trip(self):
+        ds, _ = make_dataset()
+        ta = pf.TA("synthetic", ds=ds)
+        ta.par = lmfit.Parameters()
+        ta.par.add("k0", value=0.5)
+        ta.timelimits = [0.5, 100]
+        ta.bordercut = [420, 680]
+        ta.mod = "consecutive"
+        with tempfile.TemporaryDirectory() as tmp:
+            ta.Save_project(filename="settings.hdf5", path=tmp)
+            back = pf.TA("settings.hdf5", path=tmp)
+        self.assertEqual(list(back.timelimits), [0.5, 100])
+        self.assertEqual(list(back.bordercut), [420, 680])
+        self.assertEqual(back.mod, "consecutive")
