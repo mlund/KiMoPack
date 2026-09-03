@@ -90,6 +90,14 @@ from KiMoPack.chirp import find_chirp_sparse  # noqa: E402
 from KiMoPack.sparse import is_sparse_wavelength, read_sparse_SIA  # noqa: E402
 from KiMoPack.kinetics.amplitudes import fill_int  # noqa: E402
 from KiMoPack.kinetics.models import build_c  # noqa: E402
+from KiMoPack.kinetics.simulate import (  # noqa: E402
+	_prepare_external_spectra,
+	_restore_external_spectra,
+)
+from KiMoPack.kinetics.simulate import build_concentrations as _build_concentrations  # noqa: E402
+from KiMoPack.kinetics.simulate import combine_errors as _combine_errors  # noqa: E402
+from KiMoPack.kinetics.simulate import project_dataset as _project_dataset  # noqa: E402
+from KiMoPack.kinetics.simulate import project_parameters as _project_parameters  # noqa: E402
 from KiMoPack.kinetics.simulate import simulate as _simulate  # noqa: E402
 from KiMoPack.kinetics.parameters import (  # noqa: E402
 	par_to_pardf,
@@ -4007,396 +4015,102 @@ def err_func_multi(paras, mod = 'paral', final = False, log_fit = False, multi_p
 
 
 	'''									   
-	pardf_changing=par_to_pardf(paras)
-	error_listen=[]
-	r2_listen=[]
-	if same_shape_params:
-		slice_setting_object=multi_project[0].Copy()
-	global start_time
-	
-	####### new same DAS, I'm lazy and will doublicate te loop. ###########
+	pardf_changing = par_to_pardf(paras)
+	slice_setting_object = multi_project[0].Copy() if same_shape_params else None
+
 	if same_DAS:
-		c_stack=[]
-		ds_stack=[]
-		par_stack=[]
-		height_stack=[]
-		for i,ta in enumerate(multi_project):
-			if not same_shape_params:
-				slice_setting_object=ta
-			ds = sub_ds(ds = ta.ds, scattercut = slice_setting_object.scattercut, bordercut = slice_setting_object.bordercut, 
-						timelimits = slice_setting_object.timelimits, wave_nm_bin = slice_setting_object.wave_nm_bin, 
-						time_bin = slice_setting_object.time_bin, ignore_time_region = slice_setting_object.ignore_time_region)
-			pardf=pardf_changing.copy()
-			try:#let's see if the project has an parameter object
-				pardf_ori=par_to_pardf(ta.par)
-			except:
-				pardf_ori=ta.pardf.copy()
-			if unique_parameter is not None:
-				for key in unique_parameter:
-					pardf.loc[key,'value']=pardf_ori.loc[key,'value']
+		# One set of spectra has to explain every dataset, so the projects are
+		# stacked into a single tall matrix and solved once. Slicing them apart
+		# again afterwards is what lets each still report its own error.
+		ds_stack, c_stack, par_stack, heights = [], [], [], []
+		for i, ta in enumerate(multi_project):
+			slicer = slice_setting_object if same_shape_params else ta
+			ds = _project_dataset(ta, slicer)
+			pardf = _project_parameters(pardf_changing, ta, unique_parameter, log_fit)
 			par_stack.append(pardf)
-			if log_fit:
-				pardf.loc[pardf.is_rate,'value']=pardf.loc[pardf.is_rate,'value'].apply(lambda x: 10**x)
-
-			times=ds.index.values.astype('float')
-			times_ori=times.copy()
-			if pulse_sample is not None:
-				t0=float(pardf.loc['t0','value'])
-				resolution=float(pardf.loc['resolution','value'])
-				if hasattr(pulse_sample,'__iter__'):pump_region=pulse_sample
-				else:
-					pump_region=np.linspace(t0-4*resolution,t0+4*resolution,20)
-				if pump_region.max()<times_ori.min():
-					connection_region=np.arange(pump_region[-1],times_ori.min(),resolution/10)
-					times=np.unique(np.sort(np.hstack((pump_region,connection_region,times_ori))))
-				else:
-					times=np.unique(np.sort(np.hstack((pump_region,times_ori))))
-			if sub_sample is not None:
-				listen=[times]
-				for i in range(1,sub_sample,1):
-					listen.append(times_ori[:-1]+((times_ori[1:]-times_ori[:-1])*i/sub_sample))
-				times=np.unique(np.hstack(listen))
-				times.sort()
-
-			if isinstance(mod,type('hello')):#did we use a build in model?
-				c=build_c(times=ds.index.values.astype('float'),mod=mod,pardf=pardf)
+			c = _build_concentrations(ds, pardf, mod, final=final, sub_sample=sub_sample,
+									  pulse_sample=pulse_sample, optimise_fast=False)
+			if ext_spectra is not None:
+				ds, c_for_solve, ext_spectra = _prepare_external_spectra(ds, c, ext_spectra, pardf)
 			else:
-				c=mod(times=ds.index.values.astype('float'),pardf=pardf.loc[:,'value'])
-			c=c.loc[times_ori,:]
-			
-			if ext_spectra is None:
-				c_temp=c.copy()
-			else:
-				if 'ext_spectra_shift' in list(pardf.index.values):
-					ext_spectra.index=ext_spectra.index.values+pardf.loc['ext_spectra_shift','value']
-					ext_spectra=rebin(ext_spectra,ds.columns.values.astype(float))
-				else:
-					ext_spectra=rebin(ext_spectra,ds.columns.values.astype(float))
-				if "ext_spectra_scale" in list(pardf.index.values):
-					ext_spectra=ext_spectra*pardf.loc['ext_spectra_scale','value']
-				c_temp=c.copy()
-				for col in ext_spectra.columns.values:
-					A,B=np.meshgrid(c.loc[:,col].values,ext_spectra.loc[:,col].values)
-					C=pandas.DataFrame((A*B).T,index=c.index,columns=ext_spectra.index.values)
-					ds=ds-C
-					if "ext_spectra_guide" not in list(pardf.index.values):
-						c_temp.drop(col,axis=1,inplace=True)
+				c_for_solve = c
 			if weights is not None:
-				if len(weights)==len(multi_project)-1:
-					weights=list(weights)
-					weights.insert(0,1)
-				elif len(weights)!=len(multi_project):
-					Ex = ValueError()
-					Ex.strerror='The number of entries i the list must either be the number of all elements (including \"TA\" or the number of elements in other. In this case the element ta gets the weight=1'
-					raise Ex
-				ds_stack.append(ds*weights[i])
-			else:
-				ds_stack.append(ds)
-			c_stack.append(c_temp)
-			height_stack.append(len(c_temp.index.values))  #this remembers how many time points were added
-			
-		A_con=pandas.concat(ds_stack)
-		c_con=pandas.concat(c_stack)
-		re=fill_int(ds=A_con,c=c_con, return_shapes = dump_shapes, final =final)
-		if final:
-			re['c']=c
-		if dump_paras:
-			try:
-				pardf.loc['error','value']=re['error']
-			except:
-				pass
-			if final:
-				try:
-					pardf.loc['r2','value']=1-re['error']/((re['A']-re['A'].mean().mean())**2).sum().sum()
-				except:
-					pass
-			try:
-				if filename is None:
-					store_name='minimal_dump_paras.par'
-				else:
-					store_name='minimal_dump_paras_%s.par'%filename
-				min_df=pandas.read_csv(store_name,sep=',',header=None,skiprows=1)
-				if float(min_df.iloc[-1,1])>float(re['error']):
-					pardf.to_csv(store_name)
-			except:
-				pass
-			if filename is None:
-				store_name='dump_paras.par'
-			else:
-				store_name='dump_paras_%s.par'%filename
-			try:
-				pardf.to_csv(store_name)
-			except:
-				print('Saving of %s failed'%store_name)
-		
-		if final:
-			if isinstance(mod,type('hello')):#did we use a build in model?	
-				if ext_spectra is not None:
-					for col in ext_spectra.columns.values:
-						if "ext_spectra_guide" in list(pardf.index.values):
-							re['DAC'][col]=re['DAC'][col]+ext_spectra.loc[:,col].values
-						else:
-							re['DAC'][col]=ext_spectra.loc[:,col].values
-							re['c'][col]=c.loc[:,col].values
-						A,B=np.meshgrid(c.loc[:,col].values,ext_spectra.loc[:,col].values)
-						C=pandas.DataFrame((A*B).T,index=c.index,columns=ext_spectra.index.values)
-						re['A']=re['A']+C
-						re['AC']=re['AC']+C
-			else:
-				if ext_spectra is not None:
-					for col in ext_spectra.columns.values:
-						if "ext_spectra_guide" in list(pardf.index.values):
-							re['DAC'][col]=re['DAC'][col]+ext_spectra.loc[:,col].values
-						else:
-							re['DAC'][col]=ext_spectra.loc[:,col].values
-							re['c'][col]=c.loc[:,col].values
-						A,B=np.meshgrid(c.loc[:,col].values,ext_spectra.loc[:,col].values)
-						C=pandas.DataFrame((A*B).T,index=c.index,columns=ext_spectra.index.values)
-						re['A']=re['A']+C
-						re['AC']=re['AC']+C
-				else:
-					re['DAC'].columns=c.columns.values
-					re['c'].columns=c.columns.values
-			return_listen=[]
-			for i,ta in enumerate(multi_project):
-				re_local={}
-				if i==0:
-					lower=0
-				else:
-					lower=np.array(height_stack)[:i].sum()	# here i made a change
-				re_local['A']=re['A'].copy().iloc[lower:lower+height_stack[i],:]
-				re_local['AC']=re['AC'].copy().iloc[lower:lower+height_stack[i],:]
-				re_local['AE']=re['AE'].copy().iloc[lower:lower+height_stack[i],:]
-				re_local['c']=re['c'].copy().iloc[lower:lower+height_stack[i],:]
-				re_local['error_total']=re['error']
-				re_local['error']=(re['AE']**2).sum().sum()
-				re_local['DAC']=re['DAC'].copy()
-				re_local['r2']=1-re_local['error']/((re_local['A']-re_local['A'].mean().mean())**2).sum().sum()
-				re_local['r2_total']=1-re['error']/((re['A']-re['A'].mean().mean())**2).sum().sum()
-				re_local['pardf']=par_stack[i]
-				try:
-					re_local['filename']=filename
-				except:
-					pass
-				return_listen.append(re_local)
-		if mod not in ['paral','exponential','consecutive']:
-			if write_paras:
-				print('----------------------------------')
-				print(pardf)
-			else:
-				try:
-					if np.abs(tm.time()-start_time)>10:
-						start_time=tm.time()
-						print(re['error'])
-				except Exception as e:
-					print(e)
-					start_time=tm.time()
-		if final:
-			return return_listen
-		else:
-			return re['error']
-	###################	  not same DAS####################
-	else:
-		
-		for i,ta in enumerate(multi_project):
-			if not same_shape_params:
-				slice_setting_object=ta
-			ds = sub_ds(ds = ta.ds, scattercut = slice_setting_object.scattercut, bordercut = slice_setting_object.bordercut, 
-						timelimits = slice_setting_object.timelimits, wave_nm_bin = slice_setting_object.wave_nm_bin, 
-						time_bin = slice_setting_object.time_bin, ignore_time_region = slice_setting_object.ignore_time_region)	
-			pardf=pardf_changing.copy()
-			try:#let's see if the project has an parameter object
-				pardf_ori=par_to_pardf(ta.par)
-			except:
-				pardf_ori=pardf
-			if unique_parameter is not None:
-				for key in unique_parameter:
-					pardf.loc[key,'value']=pardf_ori.loc[key,'value']	
-			if log_fit:
-				pardf.loc[pardf.is_rate,'value']=pardf.loc[pardf.is_rate,'value'].apply(lambda x: 10**x)
+				scaling = list(weights)
+				if len(scaling) == len(multi_project) - 1:
+					scaling.insert(0, 1)
+				elif len(scaling) != len(multi_project):
+					raise ValueError('The number of entries i the list must either be the number of '
+									 'all elements (including "TA" or the number of elements in other. '
+									 'In this case the element ta gets the weight=1')
+				ds = ds * scaling[i]
+			ds_stack.append(ds)
+			c_stack.append(c_for_solve)
+			heights.append(len(c_for_solve.index.values))
 
-			if isinstance(mod,type('hello')):#did we use a build in model?
-				
-				times=ds.index.values.astype('float')
-				times_ori=times.copy()
-				if pulse_sample is not None:
-					t0=float(pardf.loc['t0','value'])
-					resolution=float(pardf.loc['resolution','value'])
-					if hasattr(pulse_sample,'__iter__'):pump_region=pulse_sample
-					else:
-						pump_region=np.linspace(t0-4*resolution,t0+4*resolution,20)
-					if pump_region.max()<times_ori.min():
-						connection_region=np.arange(pump_region[-1],times_ori.min(),resolution/10)
-						times=np.unique(np.sort(np.hstack((pump_region,connection_region,times_ori))))
-					else:
-						times=np.unique(np.sort(np.hstack((pump_region,times_ori))))
-				if sub_sample is not None:
-					listen=[times]
-					for i in range(1,sub_sample,1):
-						listen.append(times_ori[:-1]+((times_ori[1:]-times_ori[:-1])*i/sub_sample))
-					times=np.unique(np.hstack(listen))
-					times.sort()
-				
-				c=build_c(times=ds.index.values.astype('float'),mod=mod,pardf=pardf)
-				c=c.loc[times_ori,:]
-				
-				if ext_spectra is None:
-					re=fill_int(ds=ds,c=c, return_shapes = dump_shapes)
-				else:
-					ext_spectra=rebin(ext_spectra,ds.columns.values.astype(float))
-					c_temp=c.copy()
-					for col in ext_spectra.columns.values:
-						A,B=np.meshgrid(c.loc[:,col].values,ext_spectra.loc[:,col].values)
-						C=pandas.DataFrame((A*B).T,index=c.index,columns=ext_spectra.index.values)
-						ds=ds-C
-						c_temp.drop(col,axis=1,inplace=True)
-					re=fill_int(ds=ds,c=c_temp, return_shapes = dump_shapes)
-				if final:
-					if i==0:
-						if ext_spectra is not None:
-							for col in ext_spectra.columns.values:
-								if "ext_spectra_guide" in list(pardf.index.values):
-									re['DAC'][col]=re['DAC'][col]+ext_spectra.loc[:,col].values
-								else:
-									re['DAC'][col]=ext_spectra.loc[:,col].values
-									re['c'][col]=c.loc[:,col].values
-								A,B=np.meshgrid(c.loc[:,col].values,ext_spectra.loc[:,col].values)
-								C=pandas.DataFrame((A*B).T,index=c.index,columns=ext_spectra.index.values)
-								re['A']=re['A']+C
-								re['AC']=re['AC']+C	
-						re_final=re.copy()
-					error_listen.append(re['error'])
-					r2_listen.append(1-re['error']/((re['A']-re['A'].mean().mean())**2).sum().sum())
-				else:
-					if dump_shapes:
-						if ext_spectra is not None:
-							for col in ext_spectra.columns.values:
-								if "ext_spectra_guide" in list(pardf.index.values):
-									re['DAC'][col]=re['DAC'][col]+ext_spectra.loc[:,col].values
-								else:
-									re['DAC'][col]=ext_spectra.loc[:,col].values
-									re['c'][col]=c.loc[:,col].values
-						re['c'].to_csv(path_or_buf=ta.filename + '_c')
-						re['DAC'].to_csv(path_or_buf=ta.filename + '_DAC')
-					error_listen.append(re['error'])
-			else:
-				
-				times=ds.index.values.astype('float')
-				times_ori=times.copy()
-				if pulse_sample is not None:
-					t0=float(pardf.loc['t0','value'])
-					resolution=float(pardf.loc['resolution','value'])
-					if hasattr(pulse_sample,'__iter__'):pump_region=pulse_sample
-					else:
-						pump_region=np.linspace(t0-4*resolution,t0+4*resolution,20)
-					if pump_region.max()<times_ori.min():
-						connection_region=np.arange(pump_region[-1],times_ori.min(),resolution/10)
-						times=np.unique(np.sort(np.hstack((pump_region,connection_region,times_ori))))
-					else:
-						times=np.unique(np.sort(np.hstack((pump_region,times_ori))))
-				if sub_sample is not None:
-					listen=[times]
-					for i in range(1,sub_sample,1):
-						listen.append(times_ori[:-1]+((times_ori[1:]-times_ori[:-1])*i/sub_sample))
-					times=np.unique(np.hstack(listen))
-					times.sort()
-				
-				c=mod(times=ds.index.values.astype('float'),pardf=pardf.loc[:,'value'])
-				c=c.loc[times_ori,:]
-				
-				if ext_spectra is None:
-					re=fill_int(ds=ds,c=c, return_shapes = dump_shapes)
-				else:
-					ext_spectra=rebin(ext_spectra,ds.columns.values.astype(float))
-					c_temp=c.copy()
-					for col in ext_spectra.columns.values:
-						A,B=np.meshgrid(c.loc[:,col].values,ext_spectra.loc[:,col].values)
-						C=pandas.DataFrame((A*B).T,index=c.index,columns=ext_spectra.index.values)
-						ds=ds-C
-						if "ext_spectra_guide" not in list(pardf.index.values):
-							c_temp.drop(col,axis=1,inplace=True)
-					re=fill_int(ds=ds,c=c_temp, return_shapes = dump_shapes)
-				if final:
-					if i==0:
-						re['DAC'].columns=c.columns.values
-						re['c'].columns=c.columns.values
-						if ext_spectra is not None:
-							for col in ext_spectra.columns.values:
-								if "ext_spectra_guide" in list(pardf.index.values):
-									re['DAC'][col]=re['DAC'][col]+ext_spectra.loc[:,col].values
-								else:
-									re['DAC'][col]=ext_spectra.loc[:,col].values
-									re['c'][col]=c.loc[:,col].values
-								A,B=np.meshgrid(c.loc[:,col].values,ext_spectra.loc[:,col].values)
-								C=pandas.DataFrame((A*B).T,index=c.index,columns=ext_spectra.index.values)
-								re['A']=re['A']+C
-								re['AC']=re['AC']+C	
-						re_final=re.copy()
-					error_listen.append(re['error'])
-					r2_listen.append(1-re['error']/((re['A']-re['A'].mean().mean())**2).sum().sum())
-				else:
-					if dump_shapes:
-						if ext_spectra is not None:
-							for col in ext_spectra.columns.values:
-								if "ext_spectra_guide" in list(pardf.index.values):
-									re['DAC'][col]=re['DAC'][col]+ext_spectra.loc[:,col].values
-								else:
-									re['DAC'][col]=ext_spectra.loc[:,col].values
-									re['c'][col]=c.loc[:,col].values
-						re['c'].to_csv(path_or_buf=filename + '_c')
-						re['DAC'].to_csv(path_or_buf=filename + '_DAC')
-					error_listen.append(re['error'])
-		if weights is not None:
-			if len(weights)==len(error_listen)-1:
-				weights=list(weights)
-				weights.insert(0,1)
-			elif len(weights)!=len(error_listen):
-				Ex = ValueError()
-				Ex.strerror='The number of entries i the list must either be the number of all elements (including \"TA\" or the number of elements in other. In this case the element ta gets the weight=1'
-				raise Ex
-			combined_error=np.sqrt(((np.array(error_listen)*np.array(weights))**2).mean())
-			if final:
-				combined_r2=np.sqrt(((np.array(r2_listen)*np.array(weights))**2).mean())
-		else:
-			combined_error=np.sqrt((np.array(error_listen)**2).mean())
-			if final:
-				combined_r2=np.sqrt(((np.array(r2_listen))**2).mean())
+		re = fill_int(ds=pandas.concat(ds_stack), c=pandas.concat(c_stack),
+					  final=final, return_shapes=dump_shapes)
 		if final:
-			re_final['error']=combined_error
-			re_final['r2']=combined_r2
+			re['c'] = c
+			if ext_spectra is not None:
+				_restore_external_spectra(re, c, ext_spectra, pardf)
+			return_listen = _split_stacked_result(re, heights, par_stack, filename)
 		if dump_paras:
-			try:
-				pardf.loc['error','value']=combined_error
-			except:
-				pass
-			try:
-				pardf.loc['r2','value']=combined_r2
-			except:
-				pass
-			try:
-				if filename is None:
-					store_name='minimal_dump_paras.par'
-				else:
-					store_name='minimal_dump_paras_%s.par'%filename
-				min_df=pandas.read_csv(store_name,sep=',',header=None,skiprows=1)
-				if float(min_df.iloc[-1,1])>float(combined_error):
-					pardf.to_csv(store_name)
-			except:
-				pass
-			if filename is None:
-				store_name='dump_paras.par'
-			else:
-				store_name='dump_paras_%s.par'%filename
-			try:
-				pardf.to_csv(store_name)
-			except:
-				print('Saving of %s failed'%store_name)
-		if mod not in ['paral','exponential','consecutive']:
-			print(combined_error)
+			_dump_parameters(pardf, re, filename)
+		if not isinstance(mod, str) or mod not in ['paral', 'exponential', 'consecutive']:
+			_report_progress(pardf, re, write_paras, quiet_seconds=10)
+		return return_listen if final else re['error']
+
+	# Every dataset gets its own spectra; only the kinetics are shared.
+	errors, r2s, re_final, pardf = [], [], None, pardf_changing
+	for i, ta in enumerate(multi_project):
+		slicer = slice_setting_object if same_shape_params else ta
+		ds = _project_dataset(ta, slicer)
+		pardf = _project_parameters(pardf_changing, ta, unique_parameter, log_fit)
+		re = _simulate(ds, pardf, mod, final=final, sub_sample=sub_sample,
+					   pulse_sample=pulse_sample, ext_spectra=ext_spectra,
+					   return_shapes=dump_shapes, optimise_fast=False)
+		errors.append(re['error'])
 		if final:
-			return re_final
-		else:
-			return combined_error
+			r2s.append(re['r2'])
+			if i == 0:
+				re_final = re.copy()
+		if dump_shapes:
+			re['c'].to_csv(path_or_buf='%s_%i_c' % (filename, i))
+			re['DAC'].to_csv(path_or_buf='%s_%i_DAC' % (filename, i))
+
+	combined_error = _combine_errors(errors, weights)
+	if final:
+		re_final['error'] = combined_error
+		re_final['r2'] = _combine_errors(r2s, weights)
+	if dump_paras:
+		_dump_parameters(pardf, {'error': combined_error}, filename)
+	if not isinstance(mod, str) or mod not in ['paral', 'exponential', 'consecutive']:
+		print(combined_error)
+	return re_final if final else combined_error
+
+
+def _split_stacked_result(re, heights, par_stack, filename):
+	'''Cut a jointly solved result back into one result per project.
+
+	The spectra are shared, so every project reports the same DAC; the matrices
+	and the error are its own rows only.
+	'''
+	return_listen = []
+	for i, height in enumerate(heights):
+		lower = int(np.array(heights)[:i].sum())
+		re_local = {key: re[key].copy().iloc[lower:lower + height, :]
+					for key in ['A', 'AC', 'AE', 'c']}
+		re_local['DAC'] = re['DAC'].copy()
+		re_local['error'] = (re_local['AE'] ** 2).sum().sum()
+		re_local['error_total'] = re['error']
+		re_local['r2'] = 1 - re_local['error'] / (
+			(re_local['A'] - re_local['A'].mean().mean()) ** 2).sum().sum()
+		re_local['r2_total'] = 1 - re['error'] / (
+			(re['A'] - re['A'].mean().mean()) ** 2).sum().sum()
+		re_local['pardf'] = par_stack[i]
+		re_local['filename'] = filename
+		return_listen.append(re_local)
+	return return_listen
 
 
 

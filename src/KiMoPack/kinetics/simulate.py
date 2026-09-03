@@ -66,18 +66,21 @@ def sample_times(times_ori, pardf, pulse_sample=None, sub_sample=None):
     return times
 
 
-def build_concentrations(ds, pardf, mod, final=False, sub_sample=None, pulse_sample=None):
+def build_concentrations(ds, pardf, mod, final=False, sub_sample=None, pulse_sample=None,
+                         optimise_fast=True):
     """Concentration of every species at each measured delay.
 
     While the optimiser is searching, a model may name a cheaper stand-in that
     gives the same rate constants far faster; the expensive one is used for
-    the final evaluation that produces the reported result.
+    the final evaluation that produces the reported result. Joint fits across
+    several datasets pass ``optimise_fast=False`` and integrate throughout,
+    which is what they have always done.
     """
     times_ori = ds.index.values.astype("float")
     times = sample_times(times_ori, pardf, pulse_sample, sub_sample)
 
     model = resolve_model(mod)
-    if not final and model.optimise_with is not None:
+    if optimise_fast and not final and model.optimise_with is not None:
         model = resolve_model(model.optimise_with)
 
     c = model.build(times=times, pardf=pardf)
@@ -131,7 +134,7 @@ def _restore_external_spectra(re, c, ext_spectra, pardf):
 
 
 def simulate(ds, pardf, mod, final=False, sub_sample=None, pulse_sample=None,
-             ext_spectra=None, return_shapes=False):
+             ext_spectra=None, return_shapes=False, optimise_fast=True):
     """Model the dataset and measure the mismatch.
 
     Parameters
@@ -151,6 +154,8 @@ def simulate(ds, pardf, mod, final=False, sub_sample=None, pulse_sample=None,
         Spectra of species that are already known.
     return_shapes : bool, optional
         Include the spectra without the full reconstruction.
+    optimise_fast : bool, optional
+        Allow a model to substitute a cheaper stand-in while searching.
 
     Returns
     -------
@@ -159,7 +164,7 @@ def simulate(ds, pardf, mod, final=False, sub_sample=None, pulse_sample=None,
         ``c`` and ``r2``.
     """
     c = build_concentrations(ds, pardf, mod, final=final, sub_sample=sub_sample,
-                             pulse_sample=pulse_sample)
+                             pulse_sample=pulse_sample, optimise_fast=optimise_fast)
 
     if ext_spectra is None:
         re = fill_int(ds=ds, c=c, final=final, return_shapes=return_shapes)
@@ -186,3 +191,55 @@ def _restore_external_spectra_shapes(re, c, ext_spectra, pardf):
         else:
             re["DAC"][col] = ext_spectra.loc[:, col].values
             re["c"][col] = c.loc[:, col].values
+
+
+def project_dataset(ta, slice_settings):
+    """The slice of one project's data that a joint fit should see."""
+    from ..shaping import sub_ds
+
+    return sub_ds(ds=ta.ds, scattercut=slice_settings.scattercut,
+                  bordercut=slice_settings.bordercut, timelimits=slice_settings.timelimits,
+                  wave_nm_bin=slice_settings.wave_nm_bin, time_bin=slice_settings.time_bin,
+                  ignore_time_region=slice_settings.ignore_time_region)
+
+
+def project_parameters(shared, ta, unique_parameter=None, log_fit=False):
+    """The shared parameters, with this project's own values where they differ.
+
+    A joint fit varies one set of parameters across every dataset, except for
+    those named in ``unique_parameter`` — typically an amplitude or a time
+    zero that genuinely differs between measurements.
+    """
+    from .parameters import par_to_pardf
+
+    pardf = shared.copy()
+    if unique_parameter is not None:
+        try:
+            own = par_to_pardf(ta.par)
+        except Exception:
+            own = getattr(ta, "pardf", shared).copy()
+        for key in unique_parameter:
+            pardf.loc[key, "value"] = own.loc[key, "value"]
+    if log_fit:
+        pardf.loc[pardf.is_rate, "value"] = pardf.loc[pardf.is_rate, "value"].apply(lambda x: 10**x)
+    return pardf
+
+
+def combine_errors(errors, weights=None):
+    """Root-mean-square of the per-project errors.
+
+    ``weights`` may omit the first project, which then counts as 1 — that is
+    how the fitting interface presents "the others relative to this one".
+    """
+    if weights is None:
+        return float(np.sqrt((np.array(errors) ** 2).mean()))
+    weights = list(weights)
+    if len(weights) == len(errors) - 1:
+        weights.insert(0, 1)
+    elif len(weights) != len(errors):
+        raise ValueError(
+            "The number of entries i the list must either be the number of all elements "
+            '(including "TA" or the number of elements in other. '
+            "In this case the element ta gets the weight=1"
+        )
+    return float(np.sqrt(((np.array(errors) * np.array(weights)) ** 2).mean()))
