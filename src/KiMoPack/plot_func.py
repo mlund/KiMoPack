@@ -813,6 +813,9 @@ def Summarize_scans(list_of_scans = None, path_to_scans = 'Scans', list_to_dump 
 	if not isinstance(list_of_scans[0],TA):#we do not have opened file but most likely a list of names
 		try:
 			list_of_projects = []
+			# Single scans are sliced the same way as the project they are compared to.
+			base_selection = (_DataSelection.from_project(base_TA_object).replace(wavelength_bin=None)
+							  if base_TA_object is not None else None)
 			for entrance in list_of_scans:
 				listen = os.path.split(entrance)
 				path = os.path.normpath(listen[0])
@@ -832,9 +835,7 @@ def Summarize_scans(list_of_scans = None, path_to_scans = 'Scans', list_to_dump 
 					if fitcoeff is not None:
 						new_ds=Fix_Chirp(ds=new_ds,fitcoeff=fitcoeff)
 					try:
-						new_ds=sub_ds(new_ds, ignore_time_region = base_TA_object.ignore_time_region, wave_nm_bin = base_TA_object.wave_nm_bin, baseunit = base_TA_object.baseunit, 
-										scattercut = base_TA_object.scattercut, bordercut = base_TA_object.bordercut, timelimits = base_TA_object.timelimits, time_bin = base_TA_object.time_bin, 
-										equal_energy_bin = base_TA_object.equal_energy_bin)
+						new_ds = base_selection.apply(new_ds)
 						if (base_TA_object.wave_nm_bin is not None) or (base_TA_object.equal_energy_bin is not None):
 							print('in the original TA objec the data was rebinned, which is now also done for the single scans. To avoid that use "ta.wave_nm_bin = None" and / or "ta.equal_energy_bin = None" before handing it to base_TA_object')
 					except Exception as e:
@@ -851,9 +852,7 @@ def Summarize_scans(list_of_scans = None, path_to_scans = 'Scans', list_to_dump 
 
 			else:
 				ds=base_TA_object.ds
-				ds = sub_ds(ds, ignore_time_region = base_TA_object.ignore_time_region, wave_nm_bin = base_TA_object.wave_nm_bin, baseunit = base_TA_object.baseunit, 
-							scattercut = base_TA_object.scattercut, bordercut = base_TA_object.bordercut, timelimits = base_TA_object.timelimits, time_bin = base_TA_object.time_bin, 
-							equal_energy_bin = base_TA_object.equal_energy_bin)
+				ds = base_selection.apply(ds)
 			######################
 			try:
 				list_of_projects = np.transpose(np.array(list_of_projects),(1, 2, 0))
@@ -2869,8 +2868,9 @@ def plot1d(ds = None, wavelength = None, width = None, ax = None, subplot = Fals
 			colors = colm(np.arange(color_offset, len(wavelength)+color_offset), cmap = cmap)
 		else:
 			colors = colm(np.arange(color_offset, len(wavelength)+color_offset), cmap = line_colors)
-	ds = sub_ds(ds = ds, wavelength = wavelength, wavelength_bin = width, scattercut = scattercut, 
-				ignore_time_region = ignore_time_region, drop_ignore = True, from_fit = from_fit)
+	selection = _DataSelection(scattercut=scattercut, wavelength_bin=width,
+								   ignore_time_region=ignore_time_region)
+	ds = selection.apply(ds, wavelength=wavelength, drop_ignore=True, from_fit=from_fit)
 	if 'smoothed' in lines_are:
 		for piece, first in _frame_spans(ds, ignore_time_region):
 			smoothed = Frame_golay(piece, window = 5, order = 3)
@@ -3089,8 +3089,9 @@ def SVD(ds, times = None, scattercut = None, bordercut = None, timelimits = [5e-
 		max_order=times
 	if cmap is None:cmap=standard_map
 	colors=colm(np.arange(0,max_order,1),cmap=cmap)
-	ds = sub_ds(ds, scattercut = scattercut, bordercut = bordercut, timelimits = timelimits, wave_nm_bin = wave_nm_bin, 
-				wavelength_bin = wavelength_bin, time_bin = time_bin, ignore_time_region = ignore_time_region)
+	ds = _DataSelection(scattercut=scattercut, bordercut=bordercut, timelimits=timelimits,
+						wave_nm_bin=wave_nm_bin, wavelength_bin=wavelength_bin, time_bin=time_bin,
+						ignore_time_region=ignore_time_region).apply(ds)
 	U, s, V = np.linalg.svd(ds.values)
 	if plotting:
 		if halfsize:
@@ -5664,14 +5665,15 @@ class TA():	# object wrapper for the whole
 		for i in range(5):
 			chirp_par.add('p%i'%(4-i), value = initial_fit_coeff[i])
 		chirp_par['p4'].set(min = chirp_par['p4']-0.5, max = chirp_par['p4']+0.5)
+		# Every slice in the chirp fit uses the project's own crop, so state it once.
+		chirp_selection = _DataSelection.from_project(self).replace(
+			wavelength_bin=None, baseunit=None, ignore_time_region=None)
 		try:#lets send in the background corrected matrix fails if no prior background was done
 			correction = self.background_par[3]
 			ds_back_corr = self.ds_ori-correction
 		except:
 			ds_back_corr = self.ds_ori
-		ds_back_corr = sub_ds(ds = ds_back_corr, scattercut = self.scattercut, bordercut = self.bordercut, 
-								timelimits = self.timelimits, wave_nm_bin = self.wave_nm_bin, time_bin = self.time_bin, 
-								equal_energy_bin = self.equal_energy_bin)																	   
+		ds_back_corr = chirp_selection.apply(ds_back_corr)
 		print('Before chirpfit the error is:{:.6e}'.format(initial_error[-1]))
 		
 		#################################################################################################################
@@ -5708,7 +5710,7 @@ class TA():	# object wrapper for the whole
 				time = ds_back_corr.index.values.astype('float')#extract the time		 
 				new_ds = ds_back_corr.copy().apply(lambda x:np.interp(x = time+np.polyval(temp, float(x.name)), xp = time, fp = x), axis = 0, raw = False)
 				#New Global Fit
-				fit_ds_loop = sub_ds(ds = new_ds, scattercut = self.scattercut, bordercut = self.bordercut, timelimits = self.timelimits, wave_nm_bin = self.wave_nm_bin, equal_energy_bin = self.equal_energy_bin, time_bin = self.time_bin)	
+				fit_ds_loop = chirp_selection.apply(new_ds)
 				if pardf.vary.any():							 
 					mini  =	 lmfit.Minimizer(err_func, par_into_chirpfit, fcn_kws = {'ds':fit_ds_loop, 'mod':mod, 'log_fit':self.log_fit, 'final':False})
 					results_in_chirp  =	 mini.minimize('nelder', options = {'maxiter':1e5})
@@ -5756,7 +5758,7 @@ class TA():	# object wrapper for the whole
 				raise
 			time = ds_back_corr.index.values.astype('float')#extract the time
 			self.ds = ds_back_corr.apply(lambda x:np.interp(x = time+np.polyval(temp, float(x.name)), xp = time, fp = x), axis = 0, raw = False)			 
-			fit_ds = sub_ds(ds = self.ds, scattercut = self.scattercut, bordercut = self.bordercut, timelimits = self.timelimits, wave_nm_bin = self.wave_nm_bin, equal_energy_bin = self.equal_energy_bin, time_bin = self.time_bin)
+			fit_ds = chirp_selection.apply(self.ds)
 			if pardf.vary.any():
 				results.params = results_in_chirp.params
 			
@@ -6655,22 +6657,27 @@ class TA():	# object wrapper for the whole
 		'''
 		
 		if filename is None:filename = self.filename.split('.')[0]
+		# Three views get exported: the whole matrix rebinned, kinetics at the
+		# chosen wavelengths, and spectra at the chosen delays.
+		binned = _DataSelection(scattercut=self.scattercut, bordercut=self.bordercut,
+								timelimits=self.timelimits, wave_nm_bin=self.wave_nm_bin,
+								time_bin=self.time_bin)
+		kinetics_at = _DataSelection(wavelength_bin=self.wavelength_bin)
+		spectra_at = _DataSelection(scattercut=self.scattercut, bordercut=self.bordercut,
+									wave_nm_bin=self.wave_nm_bin)
 		if save_RAW:
 			self.ds.to_csv(check_folder(path = path, current_path = self.path, 
 							filename = filename+'_chirp_corrected_raw_matrix.dat'), sep = sep)
 			if save_binned:
-				sub = sub_ds(self.ds, scattercut = self.scattercut, bordercut = self.bordercut, 
-							timelimits = self.timelimits, wave_nm_bin = self.wave_nm_bin, 
-							time_bin = self.time_bin)
+				sub = binned.apply(self.ds)
 				sub.to_csv(check_folder(path = path, current_path = self.path, 
 										filename = filename+'_chirp_corrected_rebinned_matrix.dat'), sep = sep)
 			if save_slices:
-				sub = sub_ds(ds = self.ds.copy(), wavelength_bin = self.wavelength_bin, wavelength = self.rel_wave)
+				sub = kinetics_at.apply(self.ds.copy(), wavelength=self.rel_wave)
 				#sub.columns.name = 'wavelength [nm] in %.0f bins'%self.wavelength_bin
 				sub.to_csv(check_folder(path = path, current_path = self.path, 
 							filename = filename+'_chirp_corrected_RAW_kinetics.dat'), sep = sep)
-				sub = sub_ds(ds = self.ds.copy(), times = self.rel_time, time_width_percent = self.time_width_percent, 
-								scattercut = self.scattercut, bordercut = self.bordercut, wave_nm_bin = self.wave_nm_bin)
+				sub = spectra_at.apply(self.ds.copy(), times=self.rel_time, time_width_percent=self.time_width_percent)
 				sub.to_csv(check_folder(path = path, current_path = self.path, 
 							filename = filename+'_chirp_corrected_RAW_Spectra.dat'), sep = sep)
 		if save_Fit:
@@ -6687,22 +6694,18 @@ class TA():	# object wrapper for the whole
 			self.re['AE'].to_csv(check_folder(path = path, current_path = self.path, 
 								filename = filename+'_error_matrix calculated during fit.dat'), sep = sep)
 			if save_slices:	
-				sub = sub_ds(ds = self.re['AC'].copy(), wavelength_bin = self.wavelength_bin, wavelength = self.rel_wave)
+				sub = kinetics_at.apply(self.re['AC'].copy(), wavelength=self.rel_wave)
 				#sub.columns.name = 'wavelenth [nm] in %.0f bins'%self.wavelength_bin
 				sub.to_csv(check_folder(path = path, current_path = self.path, 
 							filename = filename+'_fitted_kinetics.dat'), sep = sep)
-				sub = sub_ds(ds = self.re['A'].copy(), wavelength_bin = self.wavelength_bin, wavelength = self.rel_wave)
+				sub = kinetics_at.apply(self.re['A'].copy(), wavelength=self.rel_wave)
 				#sub.columns.name = 'wavelenth [nm] in %.0f bins'%self.wavelength_bin
 				sub.to_csv(check_folder(path = path, current_path = self.path, 
 							filename = filename+'_measured_kinetics.dat'), sep = sep)
-				sub = sub_ds(ds = self.re['AC'].copy(), times = self.rel_time, 
-							time_width_percent = self.time_width_percent, scattercut = self.scattercut, 
-							bordercut = self.bordercut, wave_nm_bin = self.wave_nm_bin)
+				sub = spectra_at.apply(self.re['AC'].copy(), times=self.rel_time, time_width_percent=self.time_width_percent)
 				sub.to_csv(check_folder(path = path, current_path = self.path, 
 							filename = filename+'_fitted_spectra.dat'), sep = sep)
-				sub = sub_ds(ds = self.re['A'].copy(), times = self.rel_time, 
-							time_width_percent = self.time_width_percent, scattercut = self.scattercut, 
-							bordercut = self.bordercut, wave_nm_bin = self.wave_nm_bin)
+				sub = spectra_at.apply(self.re['A'].copy(), times=self.rel_time, time_width_percent=self.time_width_percent)
 				sub.to_csv(check_folder(path = path, current_path = self.path, 
 							filename = filename+'_measured_spectra.dat'), sep = sep)
 				self.re['DAC'].to_csv(check_folder(path = path, current_path = self.path, 
