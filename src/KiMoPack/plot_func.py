@@ -78,6 +78,25 @@ if 1: #Hide imports
 #use this to trigger a real error for DeprecationWarnings
 #np.warnings.filterwarnings('error', category=np.VisibleDeprecationWarning)	  
 			   
+# Numeric helpers live in KiMoPack.numerics; they are re-exported here so
+# existing notebooks keep working unchanged.
+from KiMoPack.numerics import (  # noqa: E402
+	Frame_golay,
+	find_nearest,
+	find_nearest_index,
+	flatten,
+	gauss,
+	log_and,
+	nearest_neighbor_method3,
+	norm,
+	rebin,
+	rise,
+	s2_vs_smin2,
+	savitzky_golay,
+	shift,
+)
+
+
 def _ask_open_filename(**kwargs):
 	'''Open the system file picker and return the chosen path(s).
 
@@ -311,37 +330,11 @@ def mouse_move(event):
 	x, y = event.xdata, event.ydata
 	print(x, y)
 
-def flatten(mainlist):
-	return [entry for sublist in mainlist for entry in sublist]
-
-def nearest_neighbor_method3(X, q):
-	'''returns nearest neighbour value to q''' 
-	X = X.T
-	return np.argmin(np.sum((X - q) ** 2, axis=1))
 
 
-def log_and(x, y, *args):
-	"""Returns the logical and of all 2+ arguments."""
-	result = np.logical_and(x, y)
-	for a in args:
-		result = np.logical_and(result, a)
-	return result
+
 	
 	
-def s2_vs_smin2(Spectral_points = 512, Time_points = 130, number_of_species = 3, fitted_kinetic_pars = 7, target_quality = 0.95):
-	'''dfn is numerator and number of fitted parameters, dfd is denominator and number of degrees of freedom,
-	F-test is deciding if a set of parameters gives a statistical significant difference. T-test is if a single parameter gives	 statistical difference. 
-	Null hypothesis, all parameter are zero, if significant, the coefficients improve the fit
-	the f-statistics compares the number of 
-	"fitted parameter"=number of species*number of spectral points + number of kinetic parameter
-	"free points"=number of species*number of spectral points*number of time points - fitted parameter
-	within the target quality, meaning, what fraction do my variances need to have, so that I'm 100% * target_quality sure that they are different from zero'''
-	data_points = Spectral_points*Time_points
-	fitted_parameter = Spectral_points*number_of_species+fitted_kinetic_pars
-	Free_points = data_points-fitted_parameter
-	f_stat = scipy.stats.f.ppf(q = target_quality, dfn = fitted_parameter, dfd = Free_points)
-	#print('fitted points:%g\n Free points:%g\n f-stats: %g'%(fitted_parameter,Free_points,f_stat))
-	return 1+(fitted_parameter*f_stat/Free_points)	  
 
 
 def GUI_open(project_list = None, path = None, filename_part = None, fileending = 'hdf5', sep = "\\t", decimal = '.', 
@@ -594,125 +587,22 @@ def check_folder(path = None, current_path = None, filename = None):
 
 
 
-def rebin(ori_df,new_x):
-	'''interpolation of values to new index'''
-	if isinstance(ori_df,pandas.DataFrame):
-		dum={'dummy':new_x}
-		new_df=pandas.DataFrame(dum,index=new_x)
-		for col in ori_df.columns:
-			new_df[col]=np.interp(new_x,ori_df.index.values.astype('float'),ori_df[col].values)
-		new_df=new_df.drop(['dummy'],axis=1)
-		return new_df
-	elif isinstance(ori_df,pandas.Series):
-		new_df=np.interp(new_x,ori_df.index.values.astype('float'),ori_df.values)
-		return pandas.Series(new_df,index=new_x)
 
 
-def savitzky_golay(y, window_size, order, deriv=0, rate=1):
-	'''Ported from a previous function'''
-	return savgol_filter(x=y, window_length=window_size, polyorder=order, deriv=deriv, delta=rate)
 
 
-def Frame_golay(df, window=5, order=3,transpose=False):
-	'''Convenience method that returns the Golay smoothed data for each column (DataFrame) or the series
-	
-	Parameters
-	-----------
-	
-	df : pandas.DataFrame,pandas.Series
-		the DataFrame that has to be interpolated
-	
-	window_size : int,optional
-		5(Default) an integer that indicates how many units are to be interpolated
-		
-	order : int, optional
-		2 (Default) an integer that indicates what orderpolynoninal is to be used to interpolate the points. 
-		order=1 effectively turns this into a floating average
-		
-	transpose : bool,optional 
-		in which orientation is the interpolation to be done. Default is in within the column (usually timepoints)
-	
-	Returns
-	---------
-	
-	pandas.DataFrame or pandas.Series
-		DataFrame or Series with the interpolation applied
-	
-	'''
-	#df=df.fillna(0)
-
-	if transpose:
-		df=df.T
-	window= min(len(df.index.values), window)  # Ensure it's an odd number
-	order= min(len(df.index.values), order)
-	if window % 2 == 0:
-		window -= 1
-	if isinstance(df,pandas.DataFrame):
-		for col in df.columns:
-			try:
-				df.loc[:,col]=savitzky_golay(df.loc[:,col].values, window, order)
-			except Exception as e:
-				print(col)
-				print('was not smoothed')
-				print(e)
-		if transpose:
-			df=df.T
-		return df
-	elif isinstance(df,pandas.Series):
-		return pandas.Series(savitzky_golay(df.values, window, order),index=df.index)
-	else:
-		raise TypeError('must be series or DataFrame')
 
 
-def find_nearest(arr,value,con_str=False):
-	'''returns the value in the array closest to value'''
-	return arr[find_nearest_index(arr,value,con_str=False)]	
 
 
-def find_nearest_index(arr,value,con_str=False):
-	'''returns the index in the array closest to value (the first one'''
-	if con_str:
-		temp_array=np.array(arr,dtype='float')
-		idx = (np.abs(temp_array-value)).argmin()
-	else:
-		idx = (np.abs(arr-value)).argmin()
-	return idx
 
 
-def rise(x,sigma=0.1,begin=0):
-	'''	 my own implementation of the instrument response function. 
-		 Based upon an error function from 0 to 1. 
-		 Sigma is the width (after which it has 50%) 
-		 and begin is 10% of height'''
-	return (erf((x-begin-sigma)*np.sqrt(2)/(sigma))+1)/2
 
 
-def gauss(t,sigma=0.1,mu=0):
-	'''Gauss function'''
-	y=np.exp(-0.5*((t-mu)**2)/sigma**2)
-	y/=sigma*np.sqrt(2*np.pi)
-	return y
 
 
-def norm(df):
-	'''Min max norming of a dataframe'''
-	return df.apply(lambda x: (x - np.min(x)) / (np.max(x) - np.min(x)))
 
 
-def shift(df,name = None,shift = None):
-	'''Shifts a dataframe along the columns, interpolate and then resample'''
-	if name is None:name = df.columns
-	if isinstance(name,type('hello')):name = [name]
-	for nam in name:
-		ori_dat = df[nam].values
-		ori_en = np.array(df.index,dtype = 'float')
-		if ori_en[0]>ori_en[1]:#oh we have inverse order
-			dat = np.interp(ori_en[::-1],ori_en[::-1]+shift,ori_dat[::-1])
-			dat = dat[::-1]
-		else:
-			dat = np.interp(ori_en,ori_en+shift,ori_dat)
-		df[nam] = dat
-	return df
 	
 
 def colm(k,cmap = cm.seismic):
@@ -5524,8 +5414,8 @@ def _apply_chirp(ds, fitcoeff):
 	times = ds.index.values.astype(float)
 	ds_new = ds.copy()
 	for col in ds.columns:
-		shift = np.polyval(fitcoeff, float(col))
-		f = interp1d(times - shift, ds[col].values,
+		delay = np.polyval(fitcoeff, float(col))
+		f = interp1d(times - delay, ds[col].values,
 					 bounds_error=False, fill_value=0)
 		ds_new[col] = f(times)
 	ds_new.index.name = ds.index.name
