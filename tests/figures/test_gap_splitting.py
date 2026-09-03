@@ -134,3 +134,35 @@ class ComparedSpectraAcrossCuts(NumericTestCase):
         for ax in axes:
             with self.subTest():
                 self.assertEqual(len(ax.get_lines()), 1)
+
+    def _second(self, scattercut):
+        import lmfit
+        ds, _ = make_dataset(taus=(2.0, 40.0), centres=(500.0, 620.0))
+        ta = pf.TA("other", ds=ds)
+        ta.par = lmfit.Parameters()
+        ta.par.add("k0", value=0.5)
+        ta.par.add("k1", value=1 / 40.0)
+        ta.mod = "paral"
+        ta.Fit_Global()
+        ta.scattercut = scattercut
+        return ta
+
+    def test_a_second_project_keeps_its_own_colour(self):
+        """The span loop reused the name of the loop over the other projects."""
+        cuts = [[450, 470], [600, 620]]
+        ta = self._fitted(cuts)
+        ta.Compare_DAC(other=[self._second(cuts)], separate_plots=False)
+        ax = next(a for a in plt.gcf().get_axes() if a.get_lines())
+        colours = {tuple(line.get_color()) if not isinstance(line.get_color(), str)
+                   else line.get_color() for line in ax.get_lines()}
+        self.assertGreater(len(colours), 1, "the two projects should not share one colour")
+
+    def test_a_second_project_is_drawn_in_the_same_pieces(self):
+        cuts = [[450, 470], [600, 620]]
+        ta = self._fitted(cuts)
+        ta.Compare_DAC(other=[self._second(cuts)], separate_plots=True)
+        axes = [a for a in plt.gcf().get_axes() if a.get_lines()]
+        for ax in axes:
+            with self.subTest():
+                # Three spans, for this project and the other one.
+                self.assertEqual(len(ax.get_lines()), 6)

@@ -8130,29 +8130,12 @@ class TA():	# object wrapper for the whole
 				if separate_plots:				
 					col=[colors[i+1] for a in range(len(re['DAC'].columns))]
 					for j,am in enumerate(re['DAC'].columns):
-						if o.scattercut is None:	
-							re['DAC'].iloc[:,j].plot(subplots=False,ax=a[j],legend=False,color=col[i])
-							if j==0:
-								handles,labels=a[0].get_legend_handles_labels()
-								hand.append(handles[-1])	
-						elif isinstance(o.scattercut[0],  numbers.Number):
-							re['DAC'].iloc[:,j].loc[:o.scattercut[0]].plot(subplots=False,ax=a[j],legend=False,color=col[i])
-							if j==0:
-								handles,labels=a[0].get_legend_handles_labels()
-								hand.append(handles[-1])	
-							re['DAC'].iloc[:,j].loc[o.scattercut[1]:].plot(subplots=False,ax=a[j],legend=False,color=col[i],label = '_nolegend_')
-						else:
-							scattercut = flatten(o.scattercut)
-							for m in range(math.ceil(len(scattercut)/2+1)):
-								if m == 0:
-									re['DAC'].iloc[:,j].loc[:scattercut[0]].plot(subplots=False,ax=a[j],legend=False,color=col[i])
-									if j==0:
-										handles,labels=a[j].get_legend_handles_labels()
-										hand.append(handles[-1])	
-								elif m<(len(scattercut)/2):
-									re['DAC'].iloc[:,j].loc[scattercut[2*m-1]:scattercut[2*m]].plot(subplots=False,ax=a[j],legend=False,color=col[i],label = '_nolegend_')
-								else:
-									re['DAC'].iloc[:,j].loc[scattercut[-1]:].plot(subplots=False,ax=a[j],legend=False,color=col[i],label = '_nolegend_')
+						for piece, first in _frame_spans(re['DAC'].iloc[:,j], o.scattercut):
+							piece.plot(subplots=False, ax=a[j], legend=False, color=col[i],
+									   **({} if first else {'label': '_nolegend_'}))
+							if first and j==0:
+								handles,labels = a[0].get_legend_handles_labels()
+								hand.append(handles[-1])
 						a[j].set_xlabel('Wavelength in nm')				
 						a[j].set_ylabel('Spectral strength in arb. units')
 						a[j].legend(fontsize=8,frameon=False)
@@ -8161,20 +8144,10 @@ class TA():	# object wrapper for the whole
 					dacs=len(re['DAC'].columns)
 					col=colors[(i+1)*dacs:(i+2)*dacs]	
 					DAC=re['DAC']
-					if o.scattercut is None:	
-						ax = DAC.plot(subplots=separate_plots,ax=ax,legend=False,color=colors[(i+1)*len(species):(i+2)*len(species)])
-					elif isinstance(o.scattercut[0],  numbers.Number):
-						ax = DAC.loc[:o.scattercut[0], :].plot(subplots=separate_plots,ax=ax,legend=False,color=colors[(i+1)*len(species):(i+2)*len(species)])
-						DAC.loc[o.scattercut[1]:, :].plot(subplots=separate_plots,ax=ax,legend=False,color=colors[(i+1)*len(species):(i+2)*len(species)])
-					else:
-						scattercut = flatten(o.scattercut)
-						for i in range(math.ceil(len(scattercut)/2+1)):
-							if i == 0:
-								ax = DAC.loc[:scattercut[0], :].plot(subplots=separate_plots,ax=ax,legend=False,color=colors[(i+1)*len(species):(i+2)*len(species)])
-							elif i<(len(scattercut)/2):
-								ax = DAC.loc[scattercut[2*i-1]:scattercut[2*i], :].plot(subplots=separate_plots,ax=ax,legend=False,color=colors[(i+1)*len(species):(i+2)*len(species)])
-							else:
-								ax = DAC.loc[scattercut[-1]:, :].plot(subplots=separate_plots,ax=ax,legend=False,color=colors[(i+1)*len(species):(i+2)*len(species)])
+					shade = colors[(i+1)*len(species):(i+2)*len(species)]
+					for piece, first in _frame_spans(DAC, o.scattercut):
+						ax = piece.plot(subplots=separate_plots, ax=ax, legend=False, color=shade,
+										**({} if first else {'label': '_nolegend_'}))
 					ax.set_xlabel('Wavelength in nm')				
 					ax.set_ylabel('Spectral strength in arb. units')
 					ax.legend(fontsize=8,frameon=False)
