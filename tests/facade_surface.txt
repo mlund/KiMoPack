@@ -1,0 +1,106 @@
+BoundaryNorm: reexport ABCMeta
+Copyright: str
+FWHM: float
+def Fix_Chirp(ds, save_file=None, scattercut=None, intensity_range=0.005, wave_nm_bin=10, bordercut=None, shown_window=[-1.5, 1.5], filename=None, path=None, fitcoeff=None, max_points=40, cmap=<obj:LinearSegmentedColormap>, just_shift=False, sparse_method='sigmoid', sparse_poly_order=4, sparse_plot=True, sparse_t0_guess=0.0)
+def Frame_golay(df, window=5, order=3, transpose=False)
+FuncFormatter: reexport type
+def GUI_open(project_list=None, path=None, filename_part=None, fileending='hdf5', sep='\\t', decimal='.', index_is_energy=False, transpose=False, sort_indexes=False, divide_times_by=None, shift_times_by=None, external_time=None, external_wave=None, use_same_name=True, data_type=None, units=None, baseunit=None, conversion_function=None)
+GridSpec: reexport type
+LinearLocator: reexport type
+LinearSegmentedColormap: reexport type
+ListedColormap: reexport type
+Normalize: reexport ABCMeta
+Path: reexport type
+def SVD(ds, times=None, scattercut=None, bordercut=None, timelimits=[0.5, 150], wave_nm_bin=10, time_bin=None, wavelength_bin=None, plotting=True, baseunit='ps', title=None, ignore_time_region=None, cmap=<obj:ListedColormap>, equal_energy_bin=None, data_type='differential Absorption in $\\mathregular{\\Delta OD}$')
+def Species_Spectra(ta=None, conc=None, das=None)
+def Summarize_scans(list_of_scans=None, path_to_scans='Scans', list_to_dump='range', window1=None, window2=None, save_name='combined.SIA', fileending='SIA', filename_part='Scan', return_removed_list=False, sep='\t', decimal='.', index_is_energy=False, transpose=False, sort_indexes=False, divide_times_by=None, shift_times_by=None, external_time=None, external_wave=None, use_same_name=True, return_ds_only=False, data_type=None, units=None, baseunit=None, conversion_function=None, fitcoeff=None, base_TA_object=None, value_filter=None, zscore_filter_level=None, zscore_in_window=True, dump_times=True, replace_values=None, drop_scans=False)
+SymLogNorm: reexport ABCMeta
+class TA
+    TA.Background(self, lowlimit=None, uplimit=-1, use_median=False, ds=None, correction=None)
+    TA.Check_Chirp(self, chirp_file=None, fitcoeff=None, cmap=<obj:LinearSegmentedColormap>, path=None, ds=None, shown_window=[-2, 2])
+    TA.Compare_DAC(self, other=None, spectra=None, separate_plots=False, cmap=None)
+    TA.Compare_at_time(self, rel_time=None, other=None, fitted=False, norm_window=None, time_width_percent=None, spectra=None, data_and_fit=False, cmap=None, colors=None, print_click_position=False, linewidth=1, title='', plot_second_as_energy=True)
+    TA.Compare_at_wave(self, rel_wave=None, other=None, fitted=False, norm_window=None, width=None, cmap=None, colors=None, data_and_fit=False, scale_type='symlog', linewidth=1)
+    TA.Copy(self)
+    TA.Cor_Chirp(self, chirp_file=None, path=None, shown_window=[-1, 1], fitcoeff=None, max_points=40, cmap=<obj:LinearSegmentedColormap>, just_shift=False)
+    TA.Filter_data(self, ds=None, cut_bad_times=False, replace_bad_values=0, value=20, uppervalue=None, lowervalue=None, upper_matrix=None, lower_matrix=None)
+    TA.Fit_Global(self, par=None, mod=None, confidence_level=None, use_ampgo=False, other_optimizers=None, fit_chirp=False, fit_chirp_iterations=10, multi_project=None, unique_parameter=None, weights=None, same_DAS=False, dump_paras=False, dump_shapes=False, filename=None, ext_spectra=None, write_paras=False, tol=1e-05, sub_sample=None, pulse_sample=None, same_shape_params=True)
+    TA.Man_Chirp(self, shown_window=[-1, 1], path=None, max_points=40, cmap=<obj:LinearSegmentedColormap>, ds=None, just_shift=False)
+    TA.Plot_Interactive(self, fitted=False, ds=None, cmap=None, plot_on_move=False, colors=None)
+    TA.Plot_RAW(self, plotting=range(0, 4), title=None, scale_type='symlog', times=None, cmap=None, line_colors=None, filename=None, path='result_figures', savetype='png', print_click_position=False, plot_second_as_energy=True, ds=None, return_figures_handles=False)
+    TA.Plot_fit_output(self, plotting=range(0, 7), path='result_figures', savetype='png', evaluation_style=False, title=None, scale_type='symlog', patches=False, filename=None, cmap=None, line_colors=None, print_click_position=False, plot_second_as_energy=True, return_figures_handles=False)
+    TA.Print_Results(self, to_file=False)
+    TA.Save_Plots(self, path='result_figures', savetype=None, title=None, filename=None, scale_type='symlog', patches=False, cmap=None)
+    TA.Save_Powerpoint(self, save_RAW=True, save_Fit=True, filename=None, path='result_figures', scale_type='symlog', title=None, patches=False, cmap=None, savetype='pptx')
+    TA.Save_data(self, save_RAW=True, save_Fit=True, save_slices=True, save_binned=False, filename=None, save_fit_results=True, path='Data_export', sep='\t')
+    TA.Save_project(self, filename=None, path=None)
+    TA._TA__Fit_Chirp_inner(self, opt_coeff, initial_fit_coeff=None, params=None, scattercut=None, bordercut=None, timelimits=None, wave_nm_bin=None, time_bin=None, mod=None, log_fit=None, ds_back_corr=None)
+    TA._TA__Fit_Chirp_outer(self, pardf, results, fit_ds, fit_chirp_iterations, mod, deep_iteration=False)
+    TA._TA__make_standard_parameter(self)
+    TA._TA__read_ascii_data(self, sep='\t', decimal='.', index_is_energy=False, transpose=False, sort_indexes=False, divide_times_by=None, shift_times_by=None, external_time=None, external_wave=None, use_same_name=True, correct_ascii_errors=True, data_type=None, units=None, baseunit=None)
+    TA._TA__read_project(self, saved_project=None, current_path=None)
+binned_statistic: reexport function
+def build_c(times, mod='paral', pardf=None, sub_steps=None)
+def changefonts(weight='bold', font='standard', SMALL_SIZE=11, MEDIUM_SIZE=13, LARGE_SIZE=18)
+def check_folder(path=None, current_path=None, filename=None)
+def clean_double_string(filename, path=None)
+cm: module
+def colm(k, cmap=<obj:LinearSegmentedColormap>)
+def download_all(single_tutorial=None)
+def download_notebooks(libraries_only=False)
+erf: ufunc
+def err_func(paras, ds, mod='paral', final=False, log_fit=False, dump_paras=False, write_paras=False, filename=None, ext_spectra=None, dump_shapes=False, sub_sample=None, pulse_sample=None)
+def err_func_multi(paras, mod='paral', final=False, log_fit=False, multi_project=None, unique_parameter=None, weights=None, dump_paras=False, filename=None, ext_spectra=None, dump_shapes=False, same_DAS=False, write_paras=True, sub_sample=None, pulse_sample=None, same_shape_params=True)
+def fill_int(ds, c, final=True, baseunit='ps', return_shapes=False)
+def find_chirp_sparse(ds, t_range=(-2, 2), method='sigmoid', poly_order=4, t0_guess=0.0, plot=True, threshold_fraction=0.5)
+def find_nearest(arr, value, con_str=False)
+def find_nearest_index(arr, value, con_str=False)
+def flatten(mainlist)
+def gauss(t, sigma=0.1, mu=0)
+h5py: module
+halfsize: bool
+interp1d: reexport type
+def is_sparse_wavelength(ds, max_columns=20, gap_ratio=5.0)
+lmfit: module
+def log_and(x, y, *args)
+math: module
+matplotlib: module
+def mouse_move(event)
+mpimg: module
+def nearest_neighbor_method3(X, q)
+def norm(df)
+np: module
+numbers: module
+os: module
+pandas: module
+def par_to_pardf(par)
+def pardf_to_par(par_df)
+def pardf_to_timedf(pardf)
+pathlib: module
+def plot1d(ds=None, wavelength=None, width=None, ax=None, subplot=False, title=None, intensity_range=None, baseunit='ps', timelimits=None, scattercut=None, bordercut=None, cmap=<obj:LinearSegmentedColormap>, line_colors=<obj:ListedColormap>, plot_type='symlog', lintresh=0.1, linscale=1, text_in_legend=None, lines_are='smoothed', color_offset=0, ignore_time_region=None, linewidth=1, data_type='differential Absorption in $\\mathregular{\\Delta OD}$', units='nm', from_fit=False, legend_inside=True)
+def plot2d(ds, ax=None, title=None, intensity_range=None, baseunit='ps', timelimits=None, scattercut=None, bordercut=None, wave_nm_bin=None, ignore_time_region=None, time_bin=None, log_scale=False, plot_type='symlog', lintresh=1, linscale=1, wavelength_bin=None, levels=256, use_colorbar=True, cmap=None, values=None, data_type='differential Absorption in $\\mathregular{\\Delta OD}$', equal_energy_bin=None, from_fit=False)
+def plot2d_fit(re, error_matrix_amplification=5, use_images=True, patches=False, title=None, intensity_range=None, baseunit='ps', timelimits=None, scattercut=None, bordercut=None, wave_nm_bin=None, ignore_time_region=None, time_bin=None, log_scale=False, scale_type='symlog', lintresh=1, linscale=1, wavelength_bin=None, levels=256, plot_with_colorbar=True, cmap=None, values=None, data_type='differential Absorption in $\\mathregular{\\Delta OD}$', equal_energy_bin=None)
+def plot_fit_output(re, ds, cmap=None, line_colors=None, plotting=range(0, 7), title=None, path=None, filename=None, f='standard', intensity_range=0.01, baseunit='ps', timelimits=None, scattercut=None, bordercut=None, error_matrix_amplification=20, wave_nm_bin=5, rel_wave=None, width=10, rel_time=[1, 5, 10], time_width_percent=10, ignore_time_region=None, save_figures_to_folder=True, return_figures_handles=False, log_fit=False, mod=None, subplot=False, color_offset=0, log_scale=True, savetype='png', evaluation_style=False, lintresh=1, linscale=1, scale_type='symlog', patches=False, print_click_position=False, data_type='differential Absorption in $\\mathregular{\\Delta OD}$', plot_second_as_energy=True, units='nm', equal_energy_bin=None, values=None, legend_inside=True)
+def plot_raw(ds=None, plotting=range(0, 4), title=None, intensity_range=0.01, baseunit='ps', timelimits=None, scattercut=None, bordercut=None, wave_nm_bin=None, width=10, rel_wave=array([400, 500, 600, 700, 800]), rel_time=[1, 5, 10], time_width_percent=10, ignore_time_region=None, time_bin=None, cmap=<obj:LinearSegmentedColormap>, line_colors=None, color_offset=0, log_scale=True, plot_type='symlog', lintresh=0.3, linscale=1, times=None, values=None, save_figures_to_folder=False, savetype='png', path=None, filename=None, print_click_position=False, data_type='differential Absorption in $\\mathregular{\\Delta OD}$', plot_second_as_energy=True, units='nm', return_plots=False, equal_energy_bin=None, return_figures_handles=False, legend_inside=True)
+def plot_time(ds, ax=None, rel_time=None, time_width_percent=10, ignore_time_region=None, wave_nm_bin=None, title=None, text_in_legend=None, baseunit='ps', lines_are='smoothed', scattercut=None, bordercut=None, subplot=False, linewidth=1, color_offset=0, intensity_range=None, plot_second_as_energy=True, cmap=<obj:LinearSegmentedColormap>, line_colors=<obj:ListedColormap>, data_type='differential Absorption in $\\mathregular{\\Delta OD}$', units='nm', equal_energy_bin=None, from_fit=None)
+plt: module
+re: module
+def read_sparse_SIA(filename, path=None, sep='\t', decimal='.', baseunit='ps', units='nm', data_type='diff. Absorption in OD', shift_times_by=None, divide_times_by=None, **kwargs)
+def rebin(ori_df, new_x)
+def rise(x, sigma=0.1, begin=0)
+def s2_vs_smin2(Spectral_points=512, Time_points=130, number_of_species=3, fitted_kinetic_pars=7, target_quality=0.95)
+savgol_filter: reexport function
+def savitzky_golay(y, window_size, order, deriv=0, rate=1)
+scipy: module
+shading: str
+def shift(df, name=None, shift=None)
+shutil: module
+standard_colors: ListedColormap
+standard_map: LinearSegmentedColormap
+start_time: float
+def sub_ds(ds, times=None, time_width_percent=0, ignore_time_region=None, drop_ignore=False, wave_nm_bin=None, baseunit=None, scattercut=None, drop_scatter=False, bordercut=None, timelimits=None, wavelength_bin=None, wavelength=None, time_bin=None, equal_energy_bin=None, from_fit=False)
+sys: module
+tm: module
+urllib3: module
+version: str
+warnings: module

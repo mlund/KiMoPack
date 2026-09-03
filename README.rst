@@ -54,13 +54,6 @@ Install using "pip":
 
     $ pip install KiMoPack 
 
-Install and update using "conda" from the channel erdzeichen:
-
-.. code-block:: text
-
-    $ conda install -c erdzeichen kimopack
-
-Hint: the pip version is usually more recent than the conda version
 The files can also be downloaded from the github directory https://github.com/erdzeichen/KiMoPack or zenodo (see below)
 
 These commands are installing only KiMoPack and the absolutely needed dependencies. However, there are several modules that work better if additional packages are installed. In general one should try to install all packages at the same time. Additional packages that I generally recommend are h5py and tables (for saving files), python-pptx (for saving power point slides) and keyboard (Window only, for interrupting the fits). Quite useful is also nbopen that allows you to double click on the notebook files. nbopen requires an activation at the end.
@@ -100,7 +93,7 @@ Please copy one of these notebooks into your data analysis folder and rename the
 Quickstart summary
 --------------------
 
-* Install Python >3.8 (Anaconda package or similar)  Hint: installing with adding to Path makes life a lot simpler
+* Install Python >3.8. Hint: adding it to your Path makes life a lot simpler
 * Install KiMoPack  
 	minial: pip install KiMoPack
 	better: pip install KiMoPack h5py tables nbopen python-pptx 
@@ -119,40 +112,43 @@ and type in a console (e.g. windows +r, or the address line)
 Installing into a local environment
 ------------------------------------
 
-Under Windows: open the anaconda command prompt or power shell (type anaconda under windows start) 
-Under Linuxs: open a console
+Keeping KiMoPack in its own environment avoids version conflicts with other
+projects. `uv <https://docs.astral.sh/uv/>`_ does this in one step and installs
+Python for you if needed:
 
 .. code-block:: text
 
-	$ conda create --name kimoPack
-	$ conda activate kimokack
-	$ pip install KiMoPack h5py tables keyboard nbopen python-pptx
+	$ uv venv --python 3.12
+	$ uv pip install KiMoPack h5py tables nbopen python-pptx
 
-Or if you also want make sure to have a later version of python	
-
-.. code-block:: text
-
-	$ conda create --name kimopack python=3.12 ipython jupyterlab jupyter scipy numpy pandas
-	$ conda activate kimopack
-	$ pip install KiMoPack h5py tables keyboard nbopen python-pptx
-
-
-Error: insufficient rights: If one of the installs complains (error) that the user does not has sufficient rights, this installation can be done attaching "--user"
+Activate it with ``source .venv/bin/activate`` (``.venv\Scripts\activate`` on
+Windows), or skip activation entirely and prefix commands with ``uv run``:
 
 .. code-block:: text
 
-	$ conda create --name kimoPack
-	$ conda activate kimokack
-	$ pip install KiMoPack h5py tables keyboard nbopen python-pptx --user
+	$ uv run jupyter lab
 
-Error: pytables:
-	in some versions I have been running in a problem with pytables when loading saved data. 
-	Using the conda forge version solved this problem for me 
+The built-in ``venv`` module works too if you would rather not install uv:
 
 .. code-block:: text
-	
-	conda install -c conda-forge pytables  
 
+	$ python -m venv kimopack
+	$ source kimopack/bin/activate
+	$ pip install KiMoPack h5py tables nbopen python-pptx
+
+Error: insufficient rights: If an install complains that the user does not have
+sufficient rights, add ``--user`` to the pip command.
+
+Developing KiMoPack
+--------------------
+
+.. code-block:: text
+
+	$ git clone https://github.com/erdzeichen/KiMoPack
+	$ cd KiMoPack
+	$ uv sync --group dev
+	$ uv run python -m unittest discover -s tests -t .
+	$ uv run ruff check .
 
 Citation
 ------------

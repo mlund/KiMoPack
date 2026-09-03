@@ -36,8 +36,13 @@ dependencies =[
     "numpy>=1.19",
     "lmfit>=1.0",
     "scipy>=1.5",
-    "pathlib",
     "urllib3"]
+
+# Imported lazily and guarded at the call site: PowerPoint export and the
+# keyboard interrupt for long fits work only when these are present.
+[project.optional-dependencies]
+powerpoint = ["python-pptx>=0.6.18"]
+interrupt = ["keyboard"]
 
 [project.urls]
 "Bug Tracker"="https://github.com/erdzeichen/KiMoPack/issues"
@@ -48,3 +53,29 @@ dependencies =[
 [tool.setuptools]
 package-dir = {""="src"}
 packages = ["KiMoPack"]
+
+[dependency-groups]
+dev = ["ruff>=0.12"]
+# Sphinx 7.x is the last line that still supports the Python 3.8 this package
+# promises; 4.2 imported pkg_resources and stopped working on modern setuptools.
+docs = [
+    "sphinx>=7.1,<8",
+    "sphinx_rtd_theme>=2.0",
+    "readthedocs-sphinx-search>=0.3.2"]
+
+[tool.ruff]
+line-length = 120
+extend-exclude = ["Tutorial_Notebooks", "Workflow_tools", "docs"]
+
+[tool.ruff.lint]
+select = ["E4", "E7", "E9", "F", "B", "UP", "I", "E722"]
+
+[tool.ruff.lint.per-file-ignores]
+# plot_func.py predates this config and is being dismantled module by module.
+# Style rules are silenced so the gate stays green on code nobody is rewriting
+# yet, but the correctness rules that matter (F821 undefined-name, most of F)
+# stay on: they already caught two live bugs. Each extracted module leaves this
+# exemption automatically, since the ignore is scoped to this one path.
+# F401/F403 are permanent here — the facade re-exports the public API on purpose.
+"src/KiMoPack/plot_func.py" = ["F401", "F403", "F841", "E7", "UP", "B", "I001"]
+"src/KiMoPack/__init__.py" = ["F401", "UP", "I001"]

@@ -29,8 +29,6 @@ if 1: #Hide imports
 	import scipy.stats	
 	import pathlib
 	from pathlib import Path
-	from tkinter import filedialog
-	import tkinter
 	import time as tm #sorry i use time in my code
 	import lmfit
 	
@@ -80,6 +78,22 @@ if 1: #Hide imports
 #use this to trigger a real error for DeprecationWarnings
 #np.warnings.filterwarnings('error', category=np.VisibleDeprecationWarning)	  
 			   
+def _ask_open_filename(**kwargs):
+	'''Open the system file picker and return the chosen path(s).
+
+	tkinter is imported here rather than at module scope because it is absent
+	from most headless installations, where importing it would make the whole
+	package unusable for anyone who never opens a dialog.
+	'''
+	import tkinter
+	from tkinter import filedialog
+	root_window = tkinter.Tk()
+	root_window.withdraw()
+	root_window.attributes('-topmost', True)
+	root_window.after(1000, lambda: root_window.focus_force())
+	return filedialog.askopenfilename(initialdir=os.getcwd(), **kwargs)
+
+
 def _in_colab():
     """Return True when running inside Google Colab."""
     try:
@@ -479,11 +493,7 @@ def GUI_open(project_list = None, path = None, filename_part = None, fileending 
 		>>> project_list=pf.GUI_open(project_list = ['file1.txt', 'file2.txt'], external_time = 'tid')
 		'''
 	if project_list is None:
-		root_window = tkinter.Tk()
-		root_window.withdraw()
-		root_window.attributes('-topmost',True)
-		root_window.after(1000, lambda: root_window.focus_force())
-		path_list = filedialog.askopenfilename(initialdir=os.getcwd(),multiple=True,filetypes=[('TA project files','*.%s'%fileending),('SIA measurement files','*.SIA'),('all files','*.*')])									 
+		path_list = _ask_open_filename(multiple=True,filetypes=[('TA project files','*.%s'%fileending),('SIA measurement files','*.SIA'),('all files','*.*')])
 		if project_list is None:
 			project_list=[]
 	elif project_list=='all':
@@ -950,11 +960,7 @@ def Summarize_scans(list_of_scans = None, path_to_scans = 'Scans', list_to_dump 
 		else:#we have not specified a specific name and want all files in the folder
 			list_of_scans = sorted([currentFile for currentFile in scan_path.glob("*.%s"%fileending)])
 	elif list_of_scans == 'gui':
-		root_window = tkinter.Tk()
-		root_window.withdraw()
-		root_window.attributes('-topmost',True)
-		root_window.after(1000, lambda: root_window.focus_force())
-		path_list = filedialog.askopenfilename(initialdir = os.getcwd(),multiple = True,filetypes = [('Raw scan files',"*.%s"%fileending)])
+		path_list = _ask_open_filename(multiple = True,filetypes = [('Raw scan files',"*.%s"%fileending)])
 		list_of_scans = path_list
 	elif not hasattr(list_of_scans,'__iter__'):
 		raise ValueError('We need something to iterate for the list')
@@ -5000,7 +5006,7 @@ def err_func_multi(paras, mod = 'paral', final = False, log_fit = False, multi_p
 				else:
 					store_name='minimal_dump_paras_%s.par'%filename
 				min_df=pandas.read_csv(store_name,sep=',',header=None,skiprows=1)
-				if float(min_df.iloc[-1,1])>float(combined_error):
+				if float(min_df.iloc[-1,1])>float(re['error']):
 					pardf.to_csv(store_name)
 			except:
 				pass
@@ -5440,7 +5446,7 @@ def read_sparse_SIA(filename, path=None, sep='\t', decimal='.',
 	"""
 	filepath = os.path.join(path, filename) if path else filename
 
-	ds = pd.read_csv(filepath, sep=sep, decimal=decimal,
+	ds = pandas.read_csv(filepath, sep=sep, decimal=decimal,
 					 index_col=0, header=0)
 	ds.columns = ds.columns.values.astype(float)
 	ds.index = ds.index.values.astype(float)
@@ -5807,11 +5813,7 @@ class TA():	# object wrapper for the whole
 		else:
 			ext_data_switch=False
 		if filename == 'gui' and not ext_data_switch:
-			root_window = tkinter.Tk()			
-			root_window.withdraw()
-			root_window.attributes('-topmost',True)
-			root_window.after(1000, lambda: root_window.focus_force())
-			complete_path = filedialog.askopenfilename(initialdir=os.getcwd())
+			complete_path = _ask_open_filename()
 			listen=os.path.split(complete_path)
 			path=os.path.normpath(listen[0])
 			self.path=path
@@ -5829,11 +5831,7 @@ class TA():	# object wrapper for the whole
 					filename=listen[1]
 					self.filename=filename
 			except:
-				root_window = tkinter.Tk()
-				root_window.withdraw()
-				root_window.attributes('-topmost',True)
-				root_window.after(1000, lambda: root_window.focus_force())
-				complete_path = filedialog.askopenfilename(initialdir=os.getcwd())
+				complete_path = _ask_open_filename()
 				listen=os.path.split(complete_path)
 				path=os.path.normpath(listen[0])
 				self.path=path
@@ -6693,11 +6691,7 @@ class TA():	# object wrapper for the whole
 			fitcoeff=[-3.384e-12,1.456e-08,-2.366e-05,0.0172,-4.306]
 		elif chirp_file is not None:
 			if 'gui' in chirp_file:
-				root_window = tkinter.Tk()
-				root_window.withdraw()
-				root_window.attributes('-topmost',True)
-				root_window.after(1000, lambda: root_window.focus_force())
-				complete_path = filedialog.askopenfilename(initialdir=os.getcwd())
+				complete_path = _ask_open_filename()
 				listen=os.path.split(complete_path)
 				path=os.path.normpath(listen[0])
 				chirp_file=listen[1]
@@ -6821,11 +6815,7 @@ class TA():	# object wrapper for the whole
 		if chirp_file is None:
 			chirp_file=self.chirp_file
 		elif 'gui' in chirp_file:
-			root_window = tkinter.Tk()
-			root_window.withdraw()
-			root_window.attributes('-topmost',True)
-			root_window.after(1000, lambda: root_window.focus_force())
-			complete_path = filedialog.askopenfilename(initialdir=os.getcwd())
+			complete_path = _ask_open_filename()
 			listen=os.path.split(complete_path)
 			path=os.path.normpath(listen[0])
 			chirp_file=listen[1]
