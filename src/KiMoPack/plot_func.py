@@ -81,6 +81,7 @@ if 1: #Hide imports
 # Numeric helpers live in KiMoPack.numerics; they are re-exported here so
 # existing notebooks keep working unchanged.
 from KiMoPack.paths import check_folder, clean_double_string  # noqa: E402
+from KiMoPack.kinetics.amplitudes import fill_int  # noqa: E402
 from KiMoPack.kinetics.models import build_c  # noqa: E402
 from KiMoPack.kinetics.parameters import (  # noqa: E402
 	par_to_pardf,
@@ -4009,95 +4010,6 @@ def Fix_Chirp(ds, save_file = None, scattercut = None, intensity_range = 5e-3,
 
 
 
-def fill_int(ds,c,final=True,baseunit='ps',return_shapes=False):
-	'''solving the intensity an equation_way, takes the target dataframe and the concentration frame 
-	prepares the matrixes(c) the tries to solve this equation system using 
-	eps=np.linalg.lstsq(AA,Af,rcond=-1)[0]
-	if failes it returns a dictionary with 1000 as error (only entry) if successful
-	it returns a dictionary that contains the 
-	fit_error = (AE**2).sum() with AE beeing the difference of measured and calcuated matrix
-	
-	Parameters
-	-----------
-	
-	ds : DataFrame
-		DataFrame to be fitted
-		
-	c: DataFrame
-		DataFrame oontaining the concentration matrix (the concentrations as with the times as index. 
-		Each different species has a column with the species name as column name
-		
-	final : bool,optional
-		if True (Default) the complete solutions will be attached otherwise only the error is attached
-		
-	baseunit : str,optional
-		this string is used as unit for the time axis
-	
-	return_shapes : bool,optional
-		Default = False, if True, then the concentrations and spectra are added to the re (even if not final)
-
-	Returns
-	------------------
-	
-	re : dict
-		the dictionary "re" attached to the object containing all the matrixes and parameter. 
-		
-		if "final" is True:
-		
-			* "A" Shaped measured Matrix
-			* "AC" Shaped calculated Matrix 
-			* "AE" Difference between A and AC = linear error 
-			* "DAC" DAS or SAS, labeled after the names given in the function (the columns of c) Care must be taken that this mesured intensity is C * DAS, the product. For exponential model the concentrations are normalized
-			* "c" The Concentrations (meaning the evolution of the concentrations over time. Care must be taken that this mesured intensity is C * DAS, the product. For exponential model the concentrations are normalized
-			* "error" is the S2, meaning AE**2.sum().sum()
-			
-		else:
-		
-			* "error" is the S2, meaning AE**2.sum()
-			
-
-	'''
-	time=ds.index.values.astype('float')
-	wl=ds.columns.values.astype('float')
-	time_label=ds.index.name
-	energy_label=ds.columns.name
-	A=ds.values
-	er=c.values
-	ert = er.T
-	AA = np.matmul(ert,er)
-	Af = np.matmul(ert,A)
-	try:
-		eps=np.linalg.lstsq(AA,Af,rcond=-1)[0]
-	except:
-		re={'error':1000}
-		return re
-	eps[np.isnan(eps)]=0
-	eps[np.isinf(eps)]=0
-	AC = np.matmul(er,eps)
-	AE = A-AC
-	fit_error = (AE**2).sum()
-	if final:
-		A=pandas.DataFrame(A,index=time,columns=wl)
-		AC=pandas.DataFrame(AC,index=time,columns=wl)
-		AE=pandas.DataFrame(AE,index=time,columns=wl)
-		DAC=pandas.DataFrame(eps.T,index=wl)
-		A.index.name=time_label
-		A.columns.name=energy_label
-		AC.index.name=time_label
-		AC.columns.name=energy_label
-		AE.index.name=time_label
-		AE.columns.name=energy_label
-		DAC.index.name=energy_label
-		try:
-			DAC.columns=c.columns.values
-		except:
-			pass
-		re={'A':A,'AC':AC,'AE':AE,'DAC':DAC,'error':fit_error,'c':c}
-	elif return_shapes:
-		re={'DAC':DAC,'error':fit_error,'c':c}
-	else:
-		re={'error':fit_error}
-	return re
 
 
 def err_func(paras, ds, mod = 'paral', final = False, log_fit = False, dump_paras = False, write_paras = False, 
