@@ -47,7 +47,7 @@ if 1: #Hide imports
 		from pptx import Presentation
 		from pptx.util import Inches
 	except Exception as e:
-		print('We need python-pptx to create a powerpoint file. Not essential. Either use pip or for anaconda: conda install -c conda-forge python-pptx')
+		print('We need python-pptx to create a powerpoint file. Not essential. Install it with "pip install KiMoPack[powerpoint]"')
 		print(e)
 	try:
 		import urllib3
@@ -7062,7 +7062,7 @@ class TA():	# object wrapper for the whole
 				print('The images and a powerpoint was saved to %s'%check_folder(path=path,current_path=self.path))
 			except Exception as e:
 				print('Error in powerpoint generation. Most likely a module is missing.')
-				print('We need python-pptx to create a powerpoint file.	 Either use "pip install python-pptx" or "conda install -c conda-forge python-pptx" ')
+				print('We need python-pptx to create a powerpoint file. Install it with "pip install KiMoPack[powerpoint]"')
 				print('We will save the results as pdf format for now. Check th error if somehting else went wrong')
 				print(e)
 				savetype.append('pdf')
@@ -7318,7 +7318,7 @@ class TA():	# object wrapper for the whole
 			import h5py
 		except:
 		 
-			print('could not import hdf5, current version requires that this is installed. IF running Anaconda open Conda promt and type: conda install h5py')
+			print('could not import h5py, which this version requires. Install it with "pip install h5py"')
 		data_frame_list=[]
 
 		# we hav to handle the old and new type of saving

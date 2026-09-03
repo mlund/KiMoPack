@@ -6,14 +6,8 @@
 	:target: http://www.gnu.org/licenses/gpl-3.0
 	:alt: License: GPL v3
 	
-.. image:: https://anaconda.org/erdzeichen/kimopack/badges/version.svg  
-	:target: https://conda.anaconda.org/erdzeichen
-	
 .. image:: https://badge.fury.io/py/KiMoPack.svg
     :target: https://badge.fury.io/py/KiMoPack
-
-.. image:: https://anaconda.org/erdzeichen/kimopack/badges/latest_release_date.svg   
-	:target: https://anaconda.org/erdzeichen/kimopack
 
 .. image:: https://colab.research.google.com/assets/colab-badge.svg
 	:target: https://colab.research.google.com/github/erdzeichen/KiMoPack/blob/main/Tutorial_Notebooks/KiMoPack_tutorial_0_Introduction.ipynb
