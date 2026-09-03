@@ -5488,57 +5488,54 @@ class TA():	# object wrapper for the whole
 		'''
 		if uppervalue is None: uppervalue = np.abs(value)
 		if lowervalue is None: lowervalue = -np.abs(value)
-		
 		if replace_bad_values is not None:
 			cut_bad_times=False
-		
-		if ds is None:
-			filtering=[self.ds,self.ds_ori]
-		else:
-			filtering=[ds]
-		
+		if replace_bad_values is None:
+			replace_bad_values = np.nan
+
+		# A crop narrows which points are inspected when deciding that a whole
+		# time slice is damaged: the spectral edges carry no light, and their
+		# noise would otherwise condemn every scan.
+		cropped = any([self.ignore_time_region is not None, self.scattercut is not None,
+					   self.bordercut is not None, self.timelimits is not None])
+
+		filtering = [self.ds, self.ds_ori] if ds is None else [ds]
+		results = []
 		for dataset in filtering:
-			if any([self.ignore_time_region is not None, self.scattercut is not None, self.bordercut is not None, self.timelimits is not None]):
-				dataset=sub_ds(dataset, ignore_time_region = self.ignore_time_region, scattercut = self.scattercut, bordercut = self.bordercut, timelimits = self.timelimits)
-			if cut_bad_times: #timepoint filter, delete the timepoints where value is stupid
-				matrix_size=len(dataset.index.values)
-				if upper_matrix is None:
-					damaged_times=dataset[np.any(dataset.values>uppervalue,axis=1)].index
-				else:
-					damaged_times=dataset[np.any(dataset.values>upper_matrix,axis=1)].index
-				dataset.drop(damaged_times,inplace = True)
-				if lower_matrix is None:
-					damaged_times=dataset[np.any(dataset.values<lowervalue,axis=1)].index
-				else:
-					damaged_times=dataset[np.any(dataset.values<lower_matrix,axis=1)].index
-				dataset.drop(damaged_times,inplace = True)
-				if len(dataset.index.values)<matrix_size*0.8:
-					print('attention, more than 20% of the data was removed by this filter.') 
-					print('Please check with if the spectal borders contain regions without light (and high noise)')
-					print('Setting a bordercut and scattercut before the filtering might be useful')
-			else: 
-				if replace_bad_values is None: #individual data filter
-					replace_bad_values=np.nan
-				if upper_matrix is None:
-					dataset.values[dataset.values>uppervalue]=replace_bad_values
-				else:
-					dataset.values[dataset.values>upper_matrix]=replace_bad_values
-				if lower_matrix is None:
-					dataset.values[dataset.values<lowervalue]=replace_bad_values
-				else:
-					dataset.values[dataset.values<lower_matrix]=replace_bad_values
-				if replace_bad_values == np.nan: 
-					if dataset.isna().sum().sum()>0.2 * dataset.notna().sum().sum():
-						print('attention, more than 20% of the data was removed by this filter.') 
-						print('Please check with if the spectal borders contain regions without light (and high noise)')
-						print('Setting a bordercut and scattercut before the filtering might be useful')
-				else:
-					if dataset[dataset==replace_bad_values].notna().sum().sum()> 0.2* dataset[dataset!=replace_bad_values].notna().sum().sum():
-						print('attention, more than 20% of the data was removed by this filter.') 
-						print('Please check with if the spectal borders contain regions without light (and high noise)')
-						print('Setting a bordercut and scattercut before the filtering might be useful')
-		
-		if ds is not None:return filtering[0]
+			region = sub_ds(dataset, ignore_time_region = self.ignore_time_region,
+							scattercut = self.scattercut, bordercut = self.bordercut,
+							timelimits = self.timelimits) if cropped else dataset
+			upper = uppervalue if upper_matrix is None else upper_matrix
+			lower = lowervalue if lower_matrix is None else lower_matrix
+
+			if cut_bad_times:
+				matrix_size = len(dataset.index.values)
+				damaged = region.index[np.any(region.values > upper, axis=1)
+									   | np.any(region.values < lower, axis=1)]
+				result = dataset.drop(damaged)
+				removed_fraction = 1 - len(result.index.values) / matrix_size
+			else:
+				# Build the replacement as a new array rather than writing through
+				# .values, which hands back a fresh copy whenever the frame needs
+				# consolidating, silently discarding the write. Positional, because
+				# measured time axes repeat values and cannot be aligned on labels.
+				values = dataset.values
+				bad = (values > upper) | (values < lower)
+				result = pandas.DataFrame(np.where(bad, replace_bad_values, values),
+										  index=dataset.index, columns=dataset.columns)
+				result.index.name = dataset.index.name
+				result.columns.name = dataset.columns.name
+				removed_fraction = bad.sum() / max(bad.size, 1)
+
+			if removed_fraction > 0.2:
+				print('attention, more than 20% of the data was removed by this filter.')
+				print('Please check with if the spectal borders contain regions without light (and high noise)')
+				print('Setting a bordercut and scattercut before the filtering might be useful')
+			results.append(result)
+
+		if ds is not None:
+			return results[0]
+		self.ds, self.ds_ori = results
 
 	
 	

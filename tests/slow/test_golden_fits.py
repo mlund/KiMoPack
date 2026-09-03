@@ -65,3 +65,43 @@ class RefittingRealData(NumericTestCase):
         ta.mod = "consecutive"
         ta.Fit_Global()
         self.assertGreater(ta.re["r2"], 0.99)
+
+
+@slow
+class FullPipeline(NumericTestCase):
+    """The whole chain, with the numbers pinned.
+
+    These values agree bit for bit on pandas 2.3 and 3.0; a change here means
+    a step in the pipeline moved, not that a library did.
+    """
+
+    def _prepared(self):
+        ta = pf.TA("TA_Ru-dppz_400nm_ACN.SIA", path=str(DATA / "Fitting-2"))
+        ta.Cor_Chirp(chirp_file="TA_Ru-dppz_400nm_ACN_chirp.dat")
+        return ta
+
+    def test_each_correction_moves_the_data_by_a_known_amount(self):
+        import numpy as np
+
+        ta = self._prepared()
+        self.assertAlmostEqual(float(np.nansum(np.abs(ta.ds.values))), 139227.316702, places=4)
+        ta.Filter_data(value=10)
+        self.assertAlmostEqual(float(np.nansum(np.abs(ta.ds.values))), 2367.417003, places=4)
+        ta.Background(lowlimit=-5, uplimit=-1)
+        self.assertAlmostEqual(float(np.nansum(np.abs(ta.ds.values))), 1675.156372, places=4)
+
+    def test_the_fit_after_the_full_chain(self):
+        ta = self._prepared()
+        ta.Filter_data(value=10)
+        ta.Background(lowlimit=-5, uplimit=-1)
+        ta.timelimits = [0.3, 1000]
+        ta.bordercut = [350, 700]
+        ta.wave_nm_bin = 10
+        ta.par = lmfit.Parameters()
+        ta.par.add("k0", value=1.0)
+        ta.par.add("k1", value=0.02)
+        ta.mod = "paral"
+        ta.Fit_Global()
+        self.assertAlmostEqual(dict(ta.re["fit_results_rates"]["value"])["k0"], 0.2335388121,
+                               places=8)
+        self.assertAlmostEqual(ta.re["r2"], 0.998754772806, places=10)
