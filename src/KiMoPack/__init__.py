@@ -5,67 +5,8 @@ import pathlib
 import shutil
 from pathlib import Path
 
-def check_folder(path = None, current_path = None, filename = None):
-	'''Helper function using robust path determination.\n 
-	In any case if a valif file name is given it is attached to the total path\n
-	The path can be string or windows/linux path or pure path or byte type paths.\n
-	paths that do not exists (including parents) are created\n
-	1. if path is given absolute, it is returned\n_colors
-	2. if path is a string (relative) the current_path + path is returned.\n
-	3. if current_path is not absolute or None, the current working directory is assumed as path.\n
-	4. IF all is None, the current working directory is returned
-	
-	Parameters
-	-----------
-	
-	path : str, purePath, absolute or relative, optional
-		the final part of the path used
-	
-	current_path : None, str, purePath, absolute, optional
-		path that sits before the "path variable, is filled with current working directory if left None
-	
-	filename: None, str, optional
-		attached after path and returned if not None
-		
-	'''
-	
-	if isinstance(path,bytes):
-		path = '%s'%path
-	if path is not None:
-		path = pathlib.Path(path)
+from .paths import check_folder
 
-	if isinstance(current_path, bytes):
-		current_path = '%s'%current_path
-	if current_path is not None:
-		current_path=pathlib.Path(current_path)
-		
-	if isinstance(filename, bytes):
-		filename='%s'%filename
-	if filename is not None:
-		filename = pathlib.Path(filename)
-	if path is None:
-		if current_path is None:
-			directory = Path.cwd()
-		elif current_path.is_absolute():
-			directory=current_path
-		else:
-			print('attention, current_path was given but not absolute, replaced by cwd')
-			directory = Path.cwd()
-	elif path.is_absolute():
-		directory = path
-	else:
-		if current_path is None:
-			directory = Path.cwd().joinpath(path)
-		elif current_path.is_absolute():
-			directory = current_path.joinpath(path)
-		else:
-			print('attention, current_path was given but not absolute, replaced by cwd')
-			directory = Path.cwd().joinpath(path)
-	directory.mkdir( parents=True, exist_ok=True)
-	if filename is None:
-		return directory
-	else:
-		return directory.joinpath(filename)
 def download_notebooks(libraries_only=False):
 	'''function loads the workflow notebooks into the active folder
 	if libraries_only is set to True, only the function library and the import library are loaded'''
