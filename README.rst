@@ -144,6 +144,38 @@ Developing KiMoPack
 	$ uv run python -m unittest discover -s tests -t .
 	$ uv run ruff check .
 
+Releasing
+----------
+
+The version number is not written down anywhere: it is derived from the git tag
+by setuptools_scm. Tagging is therefore what makes a release, and building from
+an untagged commit produces a development version such as ``8.0.1.dev4+gabc123``
+that PyPI will refuse.
+
+Pushing a tag runs the test suite and, if it passes, builds and uploads to PyPI:
+
+.. code-block:: text
+
+	$ git tag 8.0.0
+	$ git push origin 8.0.0
+
+To build and upload by hand instead:
+
+.. code-block:: text
+
+	$ uv build                  # writes dist/*.whl and dist/*.tar.gz
+	$ uv publish --token <pypi-token>
+
+Check what you are about to publish before pushing a tag:
+
+.. code-block:: text
+
+	$ uv build
+	$ uv run --with twine twine check dist/*
+
+Note that the source distribution includes the tutorial data and is around
+50 MB, while the wheel is well under a megabyte.
+
 Citation
 ------------
 We have published a paper introducing the toolbox under https://doi.org/10.1021/acs.jpca.2c00907

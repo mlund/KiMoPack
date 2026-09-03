@@ -1,0 +1,18 @@
+
+Fit Results:
+Model Used: exponential
+
+The minimum error is:4.34204425e-02
+The minimum R2-value is:9.98287370e-01
+
+In Rates
+               value init_value   vary   min  max  expr
+k0          0.223518        0.5   True   0.1  inf  None
+k1          0.000008       0.02   True     0  inf  None
+t0               0.0          0  False  -0.5  0.5  None
+resolution     0.086      0.086  False  0.04  0.5  None
+
+The rates converted to times with unit ps
+            value init_value  vary  min   max  expr
+k0       4.473909        2.0  True  0.0  10.0  None
+k1  120719.221846       50.0  True  0.0   inf  None
