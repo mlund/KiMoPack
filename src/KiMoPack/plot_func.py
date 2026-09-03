@@ -86,6 +86,7 @@ from KiMoPack import regions as _regions  # noqa: E402
 from KiMoPack.regions import cut_pairs as _cut_pairs  # noqa: E402
 from KiMoPack.regions import frame_spans as _frame_spans  # noqa: E402
 from KiMoPack.kinetics import models as _models  # noqa: E402
+from KiMoPack.shaping import DataSelection as _DataSelection  # noqa: E402
 from KiMoPack.shaping import sub_ds  # noqa: E402
 from KiMoPack.chirp import apply_chirp as _apply_chirp  # noqa: E402
 from KiMoPack.chirp import find_chirp_sparse  # noqa: E402
@@ -1206,9 +1207,11 @@ def plot2d(ds, ax = None, title = None, intensity_range = None, baseunit = 'ps',
 		fig=ax.get_images()
 	if timelimits is None:
 		timelimits=(ds.index.min(),ds.index.max())
-	ds = sub_ds(ds, scattercut = scattercut, bordercut = bordercut, timelimits = timelimits, wave_nm_bin = wave_nm_bin, 
-				wavelength_bin = wavelength_bin, time_bin = time_bin, ignore_time_region = ignore_time_region, wavelength=None,
-				drop_scatter = False, drop_ignore = False, equal_energy_bin = equal_energy_bin, from_fit = from_fit)		
+	selection = _DataSelection(scattercut=scattercut, bordercut=bordercut, timelimits=timelimits,
+							   wave_nm_bin=wave_nm_bin, wavelength_bin=wavelength_bin, time_bin=time_bin,
+							   ignore_time_region=ignore_time_region, equal_energy_bin=equal_energy_bin)
+	ds = selection.apply(ds, wavelength=None, drop_scatter=False, drop_ignore=False,
+						 from_fit=from_fit)
 	if intensity_range is None:
 		try:
 			maxim=max([abs(ds.values.min()),abs(ds.values.max())])
@@ -2630,9 +2633,11 @@ def plot_time(ds, ax = None, rel_time = None, time_width_percent = 10, ignore_ti
 			fig,ax1=plt.subplots(figsize=(10,6),dpi=100)
 	else:
 		ax1=ax
-	ds = sub_ds(ds = ds, times = rel_time, time_width_percent = time_width_percent, 
-				scattercut = scattercut, drop_scatter=True, bordercut = bordercut, baseunit=baseunit,
-				ignore_time_region = ignore_time_region, wave_nm_bin = wave_nm_bin, equal_energy_bin = equal_energy_bin, from_fit = from_fit)
+	selection = _DataSelection(scattercut=scattercut, bordercut=bordercut, baseunit=baseunit,
+							   ignore_time_region=ignore_time_region, wave_nm_bin=wave_nm_bin,
+							   equal_energy_bin=equal_energy_bin)
+	ds = selection.apply(ds, times=rel_time, time_width_percent=time_width_percent,
+						 drop_scatter=True, from_fit=from_fit)
 	if 'smoothed' in lines_are:
 		for piece, first in _frame_spans(ds, scattercut, equal_energy_bin is not None):
 			smoothed = Frame_golay(piece, window = 5, order = 3, transpose = False)
@@ -6082,9 +6087,10 @@ class TA():	# object wrapper for the whole
 				pardf.loc[pardf.is_rate,key]=pardf.loc[pardf.is_rate,key].apply(lambda x: np.log10(x))	
 		
 		#create-shape the data to be fitted	
-		fit_ds = sub_ds(ds = self.ds.copy(), scattercut = self.scattercut, bordercut = self.bordercut, 
-						timelimits = self.timelimits, wave_nm_bin = self.wave_nm_bin, equal_energy_bin = self.equal_energy_bin, 
-						time_bin = self.time_bin, ignore_time_region = self.ignore_time_region, drop_scatter = True, drop_ignore = True)
+		# The fit sees what the plots see, except that masked regions are dropped
+		# rather than zeroed, so they carry no weight in the residual.
+		fit_ds = _DataSelection.from_project(self).replace(wavelength_bin=None, baseunit=None).apply(
+			self.ds.copy(), drop_scatter=True, drop_ignore=True)
 		time_label=fit_ds.index.name
 		energy_label=fit_ds.columns.name
 		if pulse_sample is None:

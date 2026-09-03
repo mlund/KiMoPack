@@ -11,6 +11,7 @@ average across the crop edge — which is why this lives in one place rather
 than being reassembled at each call site.
 """
 
+import dataclasses
 import numbers
 
 import numpy as np
@@ -246,3 +247,56 @@ def _extract_times(ds, times, time_width_percent, baseunit, time_label, energy_l
     out.columns.name = time_label
     out.index.name = energy_label
     return out
+
+
+#: The crop, bin and mask settings that decide which part of a measurement is
+#: looked at. They travel together because every plot and the fit must agree
+#: on them: a spectrum drawn over a different range than was fitted is a lie.
+@dataclasses.dataclass(frozen=True)
+class DataSelection:
+    """Which part of the measurement to use.
+
+    Grouping these means a caller states them once instead of forwarding eight
+    keywords through every layer, and cannot leave one behind on the way.
+
+    What to *extract* — individual delays or wavelengths — is not held here.
+    That varies between calls that share the same crop, so it is passed to
+    :meth:`apply` instead.
+    """
+
+    timelimits: object = None
+    scattercut: object = None
+    bordercut: object = None
+    ignore_time_region: object = None
+    wave_nm_bin: object = None
+    time_bin: object = None
+    equal_energy_bin: object = None
+    wavelength_bin: object = None
+    baseunit: object = None
+
+    #: Attribute names on a TA object, which are the same as the field names.
+    _FROM_PROJECT = ("timelimits", "scattercut", "bordercut", "ignore_time_region",
+                     "wave_nm_bin", "time_bin", "equal_energy_bin", "wavelength_bin",
+                     "baseunit")
+
+    @classmethod
+    def from_project(cls, ta):
+        """Read the settings a TA object currently holds."""
+        return cls(**{name: getattr(ta, name, None) for name in cls._FROM_PROJECT})
+
+    def replace(self, **changes):
+        """A copy with some fields changed."""
+        return dataclasses.replace(self, **changes)
+
+    def as_kwargs(self):
+        """The fields as the keyword arguments :func:`sub_ds` expects."""
+        return {f.name: getattr(self, f.name) for f in dataclasses.fields(self)}
+
+    def apply(self, ds, **extraction):
+        """Crop, bin and mask ``ds``.
+
+        Extraction keywords (``times``, ``wavelength``, ``time_width_percent``,
+        ``drop_scatter``, ``drop_ignore``, ``from_fit``) are passed straight
+        through.
+        """
+        return sub_ds(ds, **self.as_kwargs(), **extraction)
