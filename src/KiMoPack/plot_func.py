@@ -81,6 +81,12 @@ if 1: #Hide imports
 # Numeric helpers live in KiMoPack.numerics; they are re-exported here so
 # existing notebooks keep working unchanged.
 from KiMoPack.paths import check_folder, clean_double_string  # noqa: E402
+from KiMoPack.kinetics.models import build_c  # noqa: E402
+from KiMoPack.kinetics.parameters import (  # noqa: E402
+	par_to_pardf,
+	pardf_to_par,
+	pardf_to_timedf,
+)
 from KiMoPack.numerics import (  # noqa: E402
 	Frame_golay,
 	find_nearest,
@@ -4001,139 +4007,6 @@ def Fix_Chirp(ds, save_file = None, scattercut = None, intensity_range = 5e-3,
 	return ds_new
 
 
-def build_c(times, mod = 'paral', pardf = None, sub_steps = None):
-	'''
-	Build concentration matrix after model the parameters are:
-	resolution is the width of the rise time (at sigma 50% intensity) 
-	This function can also be used to create illustration dynamics.
-	The parallel decays are created explicit, while the consecutive decays are 
-	created by sampling the populations at the times given in the first vector and
-	evaluate the progression at a number of substeps defined bu sub_samples (10 by default) 
-	
-	Parameters
-	-----------
-	
-	times : np.array
-		array with the times at which the dataframe should be generated. In general the 
-		experimental times
-	mod : str, optional
-		this selects the model that is used to generate the concentrations.
-		
-			1. 'paral' (Default) or 'exponential' both are equivalent
-			2. 'consecutive' or 'full_consecutive'
-		
-		In 2 the 'consecutive' and 'full_consecutive' are different in that for consecutive 
-		the optimization is done using 'exponential' (as it shoudl give the same times)
-		and then only in the last (final) iteration the 'full consecutive' differential
-		equation is used. This has significant speed advantages, but can lead to errors particularly
-		for the very fast times.
-	sub_step : int, optional
-		defines how many times the iterative loop (used in consecutive only) is sampling the concentrations 
-		between the times given in "times"
-	pardf : pd.DataFrame
-		This dataframe must contain the parameter that are used for creating the dynamics
-		the parameter must be named with the index.
-		For the internal functions this must contain these keys:
-		
-			* 't0' = zero time, mandatory
-			* 'resolution' = instrument response function, mandatory
-			* 'background',optional = if this keyword is present a flat constant background is created (=1 over the whole time)
-			* 'infinite',optional = if this keyword is present a new non decaying component is formed with the last decay time.
-			* 'explicit_GS',optional = if this keyword is present the pulse function (= ground state) is added explicitly to the data
-			* 'k0,k1,...' = with increasing integers are taken as decay times. te number of these components is used to determine how many shall be generated.
-	sub_sample: bool or integer
-		Default(None) does nothing
-		This switch turns on a additional sampling of the kinetics, meaning that we add the number of steps between each measured steps for the model formation 
-		usage: sub_sample=10
-	
-	Examples
-	---------
-
-	'''
-	
-	if 'sub_steps' in list(pardf.index.values):
-		sub_steps=pardf['sub_steps']
-	elif sub_steps is None:
-		sub_steps=10 
-	
-	choices = {'paral':0,'parallel':0,'decays':0,'exponential':0,'consecutive':1,'sequential':1,'full_consecutive':1,'full_sequential':1}
-	model=choices[mod]
-	param=pardf.loc[pardf.is_rate,'value'].values.astype(float)
-	t0=float(pardf.loc['t0','value'])
-	resolution=float(pardf.loc['resolution','value'])
-	if model == 0:#parallel
-		c=np.exp(-1*np.tile(times-t0,(len(param),1)).T*param)
-		c[(times-t0)<0]=1
-		c*=np.tile(rise(x=times,sigma=resolution,begin=t0),(len(param),1)).T
-		c=pandas.DataFrame(c,index=times)
-		c.index.name='time'
-		if 'explicit_GS' in list(pardf.index.values):
-			gs=np.zeros((len(times),1),dtype='float')
-			c['GS']=gs
-		if 'background' in list(pardf.index.values):
-			c['background']=1
-		if 'infinite' in list(pardf.index.values):
-			c['infinite']=rise(x=times,sigma=resolution,begin=t0)
-		return c
-	if model == 1:#consecutive decays
-		n_decays=len(param)
-		g=gauss(times,sigma=resolution/FWHM,mu=t0)
-		if 'infinite' in list(pardf.index.values):
-			infinite=True
-			n_decays+=1
-		else:
-			infinite=False
-
-		decays=param
-		c=np.zeros((len(times),n_decays),dtype='float')
-		
-		if 'explicit_GS' in list(pardf.index.values):
-			GS=True
-			gs=np.zeros((len(times),1),dtype='float')
-		else:
-			GS=False
-		for i in range(1,len(times)):
-			dc=np.zeros(n_decays,dtype='float')
-			dt=(times[i]-times[i-1])/(sub_steps)
-			c_temp=c[i-1,:]
-			for j in range(int(sub_steps)):
-				for l in range(0,n_decays):
-					if l>0:
-						if infinite:
-							if l<(n_decays-1):
-								dc[l]=decays[l-1]*dt*c_temp[l-1]-decays[l]*dt*c_temp[l]
-							else:
-								dc[l]=decays[l-1]*dt*c_temp[l-1]
-						else:
-							dc[l]=decays[l-1]*dt*c_temp[l-1]-decays[l]*dt*c_temp[l]
-					else:
-						if infinite and n_decays==1:
-							dc[l]=g[i]*dt
-						else:
-							dc[l]=g[i]*dt-decays[l]*dt*c_temp[l]
-				c_temp=c_temp+dc
-				c_temp[c_temp<0]=0
-				#for b in range(c.shape[1]):
-				#	c_temp[b] =np.nanmax([(c_temp[b]+float(dc[b])),0.])					
-			c[i,:] =c_temp
-			if GS and not infinite:
-				gs[i]=-c[i,:].sum()
-			elif GS:
-				gs[i]=-c[i,:-1].sum()
-		c=pandas.DataFrame(c,index=times)
-		c.index.name='time'
-		if infinite:
-			labels=list(c.columns.values)
-			labels[-1]='Non Decaying'
-			c.columns=labels
-			if 'background' in list(pardf.index.values):
-				c['background']=1
-		else:
-			if 'background' in list(pardf.index.values):
-				c['background']=1
-		if GS:
-			c['GS']=gs
-		return c
 
 
 def fill_int(ds,c,final=True,baseunit='ps',return_shapes=False):
@@ -5139,65 +5012,10 @@ def err_func_multi(paras, mod = 'paral', final = False, log_fit = False, multi_p
 			return combined_error
 
 
-def par_to_pardf(par):
-	'''function to convert a parameters object into a pretty DataFrame, it expects par to be a lmfit parameters object and loops through the keys'''
-	out_dicten={}
-	for key in par.keys():
-		out_dicten[key]={'value':par[key].value}
-		if key[0] == 'k':#its a time parameter
-			out_dicten[key]['is_rate']=True
-		elif key[:2] == 'tk':#its a time parameter
-			out_dicten[key]['is_rate']=True
-		else:
-			out_dicten[key]['is_rate']=False
-		out_dicten[key]['min']=par[key].min
-		out_dicten[key]['max']=par[key].max
-		out_dicten[key]['vary']=par[key].vary
-		out_dicten[key]['expr']=par[key].expr
-	return pandas.DataFrame(out_dicten).T
 
 
-def pardf_to_par(par_df):
-	'''converts a dataframe to lmfit object
-	set(value=None, vary=None, min=None, max=None, expr=None, brute_step=None)'''
-	par=lmfit.Parameters()
-	for key in par_df.index.values:
-		par.add(key, value=par_df.loc[key,'value'], vary=par_df.loc[key,'vary'], min=par_df.loc[key,'min'], max=par_df.loc[key,'max'], expr=par_df.loc[key,'expr'])															 
-	return par
 	
 	
-def pardf_to_timedf(pardf):
-	'''inverts all the rates to times in a dataframe'''
-	timedf=pardf.copy()
-	if 'upper_limit' in pardf.keys():
-		for key in ['init_value','value','min','max','lower_limit','upper_limit']:
-			for row in pardf.index.values:
-				if timedf.loc[row,'is_rate']:
-					if key == 'min':key_in='max'
-					elif key == 'max':key_in='min'
-					elif key == 'lower_limit':key_in='upper_limit'
-					elif key == 'upper_limit':key_in='lower_limit'
-					else:key_in=key
-					try:
-						if pardf.loc[row,key] !=0:
-							timedf.loc[row,key_in]=1/pardf.loc[row,key] 
-						else:
-							timedf.loc[row,key_in]='inf'
-					except:
-						if key == 'init_value':pass#we don't save the init values, so we get an error when converting the saved file
-						elif pardf.loc[row,key] is None:continue
-						else:print('conversion of this key failed: %s %s'%(row,key))
-	else:
-		for key in ['init_value','value','min','max']:
-			if key == 'min':key_in='max'		 
-			elif key == 'max':key_in='min'
-			else:key_in=key
-			try:
-				timedf.loc[pardf.is_rate,key_in]=pardf.loc[pardf.is_rate,key].apply(lambda x: 1/x if x!=0  else 'inf')
-			except:
-				if key == 'init_value':pass#we don't save the init values, so we get an error when converting the saved file
-				else:print('conversion of this key failed:' + key)
-	return timedf
 
 def is_sparse_wavelength(ds, max_columns=20, gap_ratio=5.0):
 	"""Return True if the wavelength axis looks sparse.
