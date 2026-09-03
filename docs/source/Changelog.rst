@@ -3,6 +3,22 @@ Changelog
 *********
 In this changelog I will only mention the new capabilities. All other version jumps are bug fixes
 
+.. _release-8.0.0:
+
+8.0.0
+========
+Results change. Four fixes alter numbers or labels from previous versions:
+
+Loading a saved project now applies its stored chirp correction. It was written through DataFrame.values and discarded, so reloaded projects were fitted uncorrected.
+Filter_data now filters when a bordercut, scattercut, timelimits or ignore_time_region is set. It previously did nothing in that case.
+Species labels are no longer swapped. With a background and a non-decaying species both present the two names were exchanged; adding explicit_GS produced two columns named 'Non Decaying' and lost 'GS'.
+In same_DAS fits each project now reports its own error and r2 rather than the combined value.
+
+Save_project works again when a fit is present. Writing the parameter table reopened the file while it was still open.
+Assigning an unknown setting on a TA object now raises instead of being silently ignored, and ranges and model names are checked where they are set.
+pulse_sample and sub_sample now take effect in multi-project fits.
+Requires Python 3.11. conda is no longer used or supported; install with pip or uv.
+
 .. _release-7.14.0:
 7.14.0
 ========
