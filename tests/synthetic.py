@@ -124,3 +124,35 @@ def make_dataset(
         waves=waves,
     )
     return ds, truth
+
+
+def make_chirped_dataset(coeffs=(0.0, 0.0, 0.0, -2e-3, 1.0), taus=(5.0,), centres=(500.0,),
+                         waves=None, times=None, resolution=0.3):
+    """A dataset whose zero time drifts with wavelength by a known polynomial.
+
+    ``coeffs`` are in numpy.polyval order, giving the delay in time units at a
+    given wavelength in nm. Each column is generated with its own onset, which
+    is what chirp correction has to undo.
+    """
+    times = default_times(-5.0, 50.0, 400) if times is None else np.asarray(times, dtype=float)
+    waves = np.linspace(400.0, 700.0, 24) if waves is None else np.asarray(waves, dtype=float)
+    spectrum = gaussian_bands(waves, centres).values[0]
+    values = np.zeros((times.size, waves.size))
+    for j, wave in enumerate(waves):
+        onset = np.polyval(coeffs, wave)
+        values[:, j] = spectrum[j] * convolved_decay(times, taus[0], onset, resolution)
+    ds = pandas.DataFrame(values, index=times, columns=waves)
+    ds.index.name = "time"
+    ds.columns.name = "wavelength"
+    return ds, np.asarray(coeffs, dtype=float)
+
+
+def make_sparse_dataset(n_waves=8, taus=(5.0,)):
+    """A dataset with only a handful of widely separated wavelength channels.
+
+    What an X-ray emission or single-channel experiment produces, where the
+    dense-spectrum assumptions elsewhere do not hold.
+    """
+    waves = np.array([400.0, 430.0, 520.0, 560.0, 610.0, 700.0, 780.0, 850.0])[:n_waves]
+    times = default_times(-5.0, 50.0, 200)
+    return make_dataset(taus=taus, centres=(600.0,) * len(taus), times=times, waves=waves)
