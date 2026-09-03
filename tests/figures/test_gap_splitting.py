@@ -89,3 +89,48 @@ class KineticsAcrossIgnoredTimes(NumericTestCase):
     def test_no_piece_is_drawn_twice(self):
         spans = _segments(self._draw([[1, 5], [50, 100]]))
         self.assertEqual(len(set(spans)), len(spans), f"duplicated segments: {spans}")
+
+
+class ComparedSpectraAcrossCuts(NumericTestCase):
+    """Compare_DAC draws one species per subplot, masked regions and all."""
+
+    def setUp(self):
+        self.addCleanup(plt.close, "all")
+
+    def _fitted(self, scattercut):
+        import lmfit
+        ds, _ = make_dataset(taus=(1.0, 30.0))
+        ta = pf.TA("synthetic", ds=ds)
+        ta.par = lmfit.Parameters()
+        ta.par.add("k0", value=1.0)
+        ta.par.add("k1", value=1 / 30.0)
+        ta.mod = "paral"
+        ta.Fit_Global()
+        ta.scattercut = scattercut
+        return ta
+
+    def test_each_subplot_shows_one_species(self):
+        """Every species used to be drawn onto every subplot once cuts were set."""
+        ta = self._fitted([[450, 470], [600, 620]])
+        ta.Compare_DAC(separate_plots=True)
+        axes = [a for a in plt.gcf().get_axes() if a.get_lines()]
+        self.assertGreater(len(axes), 1, "separate_plots should give one axis per species")
+        for ax in axes:
+            with self.subTest():
+                # Three spans from two cut regions, one species per axis.
+                self.assertEqual(len(ax.get_lines()), 3)
+
+    def test_a_single_axis_carries_every_species(self):
+        ta = self._fitted([[450, 470], [600, 620]])
+        ta.Compare_DAC(separate_plots=False)
+        ax = next(a for a in plt.gcf().get_axes() if a.get_lines())
+        species = len(ta.re["DAC"].columns)
+        self.assertEqual(len(ax.get_lines()), 3 * species)
+
+    def test_uncut_spectra_are_drawn_whole(self):
+        ta = self._fitted(None)
+        ta.Compare_DAC(separate_plots=True)
+        axes = [a for a in plt.gcf().get_axes() if a.get_lines()]
+        for ax in axes:
+            with self.subTest():
+                self.assertEqual(len(ax.get_lines()), 1)

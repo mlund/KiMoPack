@@ -1931,43 +1931,11 @@ def plot_fit_output( re, ds, cmap = None, line_colors = None, plotting = range(7
 		normed=(DAC/DAC.abs().max())
 		for i,col in enumerate(DAC_copy):
 			DAC_copy.iloc[:,i]=DAC_copy.iloc[:,i].values*re['c'].abs().max().iloc[i]
-		if scattercut is None:
-			DAC.plot(ax=ax1b,color=colors)
-			normed.plot(ax=ax1a,color=colors)
-			DAC_copy.plot(ax=ax1c,color=colors)
-		elif isinstance(scattercut[0], numbers.Number):
-			if equal_energy_bin is not None:
-				scattercut=[scipy.constants.h*scipy.constants.c/(a*1e-9*scipy.constants.electron_volt) for a in scattercut]
-				scattercut=scattercut[::-1]
-			DAC.loc[:scattercut[0],:].plot(ax=ax1b,color=colors)
-			DAC.loc[scattercut[1]:,:].plot(ax=ax1b,color=colors, label='_nolegend_')
-			normed.loc[:scattercut[0],:].plot(ax=ax1a,color=colors)
-			normed.loc[scattercut[1]:,:].plot(ax=ax1a,color=colors, label='_nolegend_')			
-			DAC_copy.loc[:scattercut[0],:].plot(ax=ax1c,color=colors)
-			DAC_copy.loc[scattercut[1]:,:].plot(ax=ax1c,color=colors, label='_nolegend_')	
-		else:
-			try:
-				scattercut=flatten(scattercut)
-				if equal_energy_bin is not None:
-					scattercut=[scipy.constants.h*scipy.constants.c/(a*1e-9*scipy.constants.electron_volt) for a in scattercut]
-					scattercut=scattercut[::-1]
-				for i in range(len(scattercut)/2+1):
-					if i==0:
-						DAC.loc[:scattercut[0],:].plot(ax=ax1b,color=colors)
-						normed.loc[:scattercut[0],:].plot(ax=ax1a,color=colors)
-						DAC_copy.loc[:scattercut[0],:].plot(ax=ax1c,color=colors)
-					elif i<(len(scattercut)/2):
-						DAC.loc[scattercut[2*i-1]:scattercut[2*i],:].plot(ax=ax1b,color=colors, label='_nolegend_')
-						normed.loc[scattercut[2*i-1]:scattercut[2*i],:].plot(ax=ax1a,color=colors, label='_nolegend_')			
-						DAC_copy.loc[scattercut[2*i-1]:scattercut[2*i],:].plot(ax=ax1c,color=colors, label='_nolegend_')	
-					else:
-						DAC.loc[scattercut[-1]:,:].plot(ax=ax1b,color=colors, label='_nolegend_')
-						normed.loc[scattercut[-1]:,:].plot(ax=ax1a,color=colors, label='_nolegend_')			
-						DAC_copy.loc[scattercut[-1]:,:].plot(ax=ax1c,color=colors, label='_nolegend_')	
-			except:
-				DAC.plot(ax=ax1b,color=colors)
-				normed.plot(ax=ax1a,color=colors)
-				DAC_copy.plot(ax=ax1c,color=colors)
+		# The same three spectra on three axes: raw, normalised, and scaled by
+		# the concentration each species reaches.
+		for frame, axis in ((DAC, ax1b), (normed, ax1a), (DAC_copy, ax1c)):
+			for piece, first in _frame_spans(frame, scattercut, equal_energy_bin is not None):
+				piece.plot(ax=axis, color=colors, **({} if first else {'label': '_nolegend_'}))
 				
 		if mod in ['paral','exponential']:
 			try:
@@ -2043,58 +2011,14 @@ def plot_fit_output( re, ds, cmap = None, line_colors = None, plotting = range(7
 		
 		limits = (dat[0].min(), dat[0].max())
 		xlimits = (dat[0].index.min(), dat[0].index.max())
-		if ignore_time_region is None:
-			for i in range(3):
-				for j in range(3):
-					if i==2:
-						_ = dat[i].plot(ax = ax2a[j], label = dat_names[i], style = dat_styles[i], color = dat_cols[i])
-					else:
-						_ = dat[i].plot(ax = ax2[j], label = dat_names[i], style = dat_styles[i], color = dat_cols[i])
-				
-		elif isinstance(ignore_time_region[0], numbers.Number):
-			x=dat[0].index.values.astype('float')
-			lower=find_nearest_index(x,ignore_time_region[0])
-			upper=find_nearest_index(x,ignore_time_region[1])
-			for i in range(3):
-				for j in range(3):
-					if i==2:
-						_ = dat[i].iloc[:lower].plot(ax = ax2a[j], label = dat_names[i], style = dat_styles[i], color = dat_cols[i])
-						_ = dat[i].iloc[upper:].plot(ax = ax2a[j], label = '_nolegend_', style = dat_styles[i], color = dat_cols[i])						
-					else:
-						_ = dat[i].iloc[:lower].plot(ax = ax2[j], label = dat_names[i], style = dat_styles[i], color = dat_cols[i])
-						_ = dat[i].iloc[upper:].plot(ax = ax2[j], label = '_nolegend_', style = dat_styles[i], color = dat_cols[i])
-		else:
-			try:
-				ignore_time_region_loc=flatten(ignore_time_region)
-				for k in range(len(ignore_time_region_loc)/2+1):
-					if k==0:
-						for i in range(3):
-							for j in range(3):
-								if i==2:
-									_ = dat[i].loc[:ignore_time_region_loc[k]].plot(ax = ax2a[j], label = dat_names[i], style = dat_styles[i], color = colm(i, cmap = cmap))
-								else:
-									_ = dat[i].loc[:ignore_time_region_loc[k]].plot(ax = ax2[j], label = dat_names[i], style = dat_styles[i], color = colm(i, cmap = cmap))			
-					elif k<(len(ignore_time_region)/2):
-						for i in range(3):
-							for j in range(3):
-								if i==2:
-									_ = dat[i].loc[ignore_time_region_loc[2*k-1]:ignore_time_region_loc[2*k]].plot(ax = ax2a[j], label = '_nolegend_', style = dat_styles[i], color = colm(i, cmap = cmap))
-								else:
-									_ = dat[i].loc[ignore_time_region_loc[2*k-1]:ignore_time_region_loc[2*k]].plot(ax = ax2[j], label = '_nolegend_', style = dat_styles[i], color = colm(i, cmap = cmap))	
-					else:
-						for i in range(3):
-							for j in range(3):
-								if i==2:
-									_ = dat[i].loc[ignore_time_region_loc[-1]:].plot(ax = ax2a[j], label = '_nolegend_', style = dat_styles[i], color = colm(i, cmap = cmap))									
-								else:
-									_ = dat[i].loc[ignore_time_region_loc[-1]:].plot(ax = ax2[j], label = '_nolegend_', style = dat_styles[i], color = colm(i, cmap = cmap))	
-			except:
-				for i in range(3):
-					for j in range(3):
-						if i==2:
-							_ = dat[i].plot(ax = ax2a[j], label = dat_names[i], style = dat_styles[i], color = colm(i, cmap = cmap))
-						else:
-							_ = dat[i].plot(ax = ax2[j], label = dat_names[i], style = dat_styles[i], color = colm(i, cmap = cmap))
+		# Three traces (data, fit, residual) on a 3x3 grid of scales; the third
+		# goes to its own row of axes.
+		for i in range(3):
+			for j in range(3):
+				target = ax2a[j] if i == 2 else ax2[j]
+				for piece, first in _frame_spans(dat[i], ignore_time_region):
+					_ = piece.plot(ax = target, style = dat_styles[i], color = dat_cols[i],
+								   label = dat_names[i] if first else '_nolegend_')
 		ax2[0].set_xlim(xlimits)
 		ax2[0].set_xscale('symlog', linscale=0.1)
 		ax2[0].autoscale(axis='y', tight=True)
@@ -8174,83 +8098,27 @@ class TA():	# object wrapper for the whole
 		DAC = re['DAC']
 		hand=[]
 		if separate_plots:
-			n_cols = int(np.ceil(len(re['DAC'].columns)/2))
-			col = [colors[0] for a in range(len(re['DAC'].columns))]
-			if self.scattercut is None:
-				if halfsize:
-					ax = DAC.plot(subplots = separate_plots, figsize = (6, 5), layout = (n_cols, 2), 
+			n_cols = int(np.ceil(len(DAC.columns)/2))
+			col = [colors[0] for a in range(len(DAC.columns))]
+			figsize = (6, 5) if halfsize else (12, 10)
+			for piece, first in _frame_spans(DAC, self.scattercut):
+				if first:
+					ax = piece.plot(subplots = separate_plots, figsize = figsize, layout = (n_cols, 2),
 									legend = False, color = col, sharex = False)
+					a = ax.ravel()
+					handles,labels = a[0].get_legend_handles_labels()
+					hand.append(handles[-1])
 				else:
-					ax = DAC.plot(subplots = separate_plots, figsize = (12, 10), layout = (n_cols, 2), 
-									legend = False, color = col, sharex = False)
-
-				a=ax.ravel()
-				handles,labels=a[0].get_legend_handles_labels()
-				hand.append(handles[-1])
-			elif isinstance(self.scattercut[0],	 numbers.Number):
-				if halfsize:
-					ax = DAC.loc[:self.scattercut[0], :].plot(subplots = separate_plots, figsize = (6, 5), layout = (n_cols, 2), 
-															legend = False, color = col, sharex = False)
-				else:
-					ax = DAC.loc[:self.scattercut[0], :].plot(subplots = separate_plots, figsize = (12, 10), layout = (n_cols, 2), 
-															legend = False, color = col, sharex = False)								
-				a=ax.ravel()
-				handles,labels=a[0].get_legend_handles_labels()
-				hand.append(handles[-1])	
-				DAC_cut=DAC.loc[self.scattercut[1]:, :]
-				for i,am in enumerate(DAC_cut.columns):
-					DAC_cut.iloc[:,i].plot(ax = a[i], legend = False, color = col)
-			else:
-				scattercut = flatten(self.scattercut)
-				for i in range(len(scattercut)/2+1):
-					if i == 0:
-						if halfsize:
-							ax = DAC.loc[:self.scattercut[0], :].plot(subplots = separate_plots, figsize = (6, 5), layout = (n_cols, 2), 
-																		legend = False, color = col, sharex = False)						
-						else:
-							ax = DAC.loc[:self.scattercut[0], :].plot(subplots = separate_plots, figsize = (12, 10), layout = (n_cols, 2), 
-																		legend = False, color = col, sharex = False)
-		
-						a=ax.ravel()
-						handles,labels=a[0].get_legend_handles_labels()
-						hand.append(handles[-1])	
-					elif i<(len(scattercut)/2):
-						for j,am in enumerate(ax):
-							DAC.loc[scattercut[2*i-1]:scattercut[2*i], :].plot(ax = a[j], legend = False, color = col, label = '_nolegend_')
-					else:
-						for j,am in enumerate(ax):
-							DAC.loc[scattercut[-1]:, :].plot(ax = a[j], legend = False, color = col, label = '_nolegend_')
+					# One species per subplot, the way the first span was drawn.
+					for j in range(len(piece.columns)):
+						piece.iloc[:,j].plot(ax = a[j], legend = False, color = col, label = '_nolegend_')
 		else:
-			if self.scattercut is None:
-				if halfsize:
-					ax	=  DAC.plot(subplots = separate_plots, figsize = (8,4), legend = False, color = colors[:len(species)], label = '_nolegend_')
-				else:
-					ax	=  DAC.plot(subplots = separate_plots, figsize = (16, 8), legend = False, color = colors[:len(species)], label = '_nolegend_')
-			elif isinstance(self.scattercut[0], numbers.Number):
-				if halfsize:
-					ax	=  DAC.loc[:self.scattercut[0], :].plot(subplots = separate_plots, figsize = (8, 4), legend = False, color = colors[:len(species)], label = '_nolegend_')
-					ax	=  DAC.loc[self.scattercut[1]:,	 :].plot(ax=ax, subplots = separate_plots, figsize = (8, 4), legend = False, color = colors[:len(species)], label = '_nolegend_')
-				else:
-					ax	=  DAC.loc[:self.scattercut[0], :].plot(subplots = separate_plots, figsize = (16, 8), legend = False, color = colors[:len(species)], label = '_nolegend_')
-					ax	=  DAC.loc[self.scattercut[1]:,	 :].plot(ax=ax, subplots = separate_plots, figsize = (16, 8), legend = False, color = colors[:len(species)], label = '_nolegend_')
-			else:
-				scattercut	=  flatten(self.scattercut)
-				for i in range(math.ceil(len(scattercut)/2+1)):
-					if i  ==  0:
-						if halfsize:
-							ax	=  DAC.loc[:scattercut[0],	:].plot(subplots = separate_plots, figsize = (8, 4), legend = False, color = colors[:len(species)], label = '_nolegend_')
-						else:
-							ax	=  DAC.loc[:scattercut[0],	:].plot(subplots = separate_plots, figsize = (16, 8), legend = False, color = colors[:len(species)], label = '_nolegend_')
-					elif i<(len(scattercut)/2):
-						if halfsize:
-							ax	=  DAC.loc[scattercut[2*i-1]:scattercut[2*i],  :].plot(ax=ax, subplots = separate_plots, figsize = (8, 4), legend = False, color = colors[:len(species)], label = '_nolegend_')
-						else:
-							ax	=  DAC.loc[scattercut[2*i-1]:scattercut[2*i],  :].plot(ax=ax, subplots = separate_plots, figsize = (16, 8), legend = False, color = colors[:len(species)], label = '_nolegend_')
-					else:
-						if halfsize:
-							ax	=  DAC.loc[scattercut[-1]:,	 :].plot(ax=ax, subplots = separate_plots, figsize = (8,4), legend = False, color = colors[:len(species)], label = '_nolegend_')
-						else:
-							ax	=  DAC.loc[scattercut[-1]:,	 :].plot(ax=ax, subplots = separate_plots, figsize = (16, 8), legend = False, color = colors[:len(species)], label = '_nolegend_')
+			figsize = (8, 4) if halfsize else (16, 8)
+			ax = None
+			for piece, first in _frame_spans(DAC, self.scattercut):
+				ax = piece.plot(subplots = separate_plots, figsize = figsize, legend = False,
+								color = colors[:len(species)], label = '_nolegend_',
+								**({} if first else {'ax': ax}))
 		if other is not None:
 			for i,o in enumerate(other):
 				try:
