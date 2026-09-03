@@ -7,12 +7,18 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.11", "3.12", "3.13"]
     steps:
       - uses: actions/checkout@v4
         with:
           # setuptools_scm derives the version from tags.
           fetch-depth: 0
       - uses: astral-sh/setup-uv@v5
-      - run: uv sync --group dev
-      - run: uv run ruff check .
-      - run: uv run python -m unittest discover -s tests -t . -v
+        with:
+          enable-cache: true
+      - run: uv sync --group dev --python ${{ matrix.python-version }}
+      - run: uv run --python ${{ matrix.python-version }} ruff check .
+      - run: uv run --python ${{ matrix.python-version }} python -m unittest discover -s tests -t . -v

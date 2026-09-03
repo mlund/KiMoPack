@@ -93,7 +93,7 @@ Please copy one of these notebooks into your data analysis folder and rename the
 Quickstart summary
 --------------------
 
-* Install Python >3.8. Hint: adding it to your Path makes life a lot simpler
+* Install Python 3.11 or newer. Hint: adding it to your Path makes life a lot simpler
 * Install KiMoPack  
 	minial: pip install KiMoPack
 	better: pip install KiMoPack h5py tables nbopen python-pptx 

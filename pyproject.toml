@@ -14,11 +14,14 @@ name = "KiMoPack"
 authors = [{name = "Jens Uhlig", email = "jens.uhlig@chemphys.lu.se"}]
 description = "A comprehensive package for the analysis of kinetic data."
 readme = "README.rst"
-requires-python = ">=3.8"
+requires-python = ">=3.11"
 dynamic= ["version"]
 
 classifiers =[
     "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
     "License :: OSI Approved :: GNU General Public License v3 (GPLv3)",
     "Operating System :: OS Independent",
     "Development Status :: 5 - Production/Stable",
@@ -56,11 +59,9 @@ packages = ["KiMoPack"]
 
 [dependency-groups]
 dev = ["ruff>=0.12"]
-# Sphinx 7.x is the last line that still supports the Python 3.8 this package
-# promises; 4.2 imported pkg_resources and stopped working on modern setuptools.
 docs = [
-    "sphinx>=7.1,<8",
-    "sphinx_rtd_theme>=2.0",
+    "sphinx>=8.1",
+    "sphinx_rtd_theme>=3.0",
     "readthedocs-sphinx-search>=0.3.2"]
 
 [tool.ruff]

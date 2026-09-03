@@ -16,8 +16,8 @@ User-supplied models are ordinary callables and are wrapped into the same
 shape, so nothing downstream needs to know where a model came from.
 """
 
+from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Callable, Optional
 
 import numpy as np
 import pandas
@@ -42,7 +42,7 @@ class KineticModel:
     #: A cheaper model the optimiser may substitute while searching, or None
     #: to always use this one. The rates come out the same either way; only
     #: the final evaluation needs the expensive integration.
-    optimise_with: Optional[str] = None
+    optimise_with: str | None = None
 
 
 def _structural(pardf, name):
