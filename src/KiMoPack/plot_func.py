@@ -83,6 +83,7 @@ if 1: #Hide imports
 # existing notebooks keep working unchanged.
 from KiMoPack.paths import check_folder, clean_double_string  # noqa: E402
 from KiMoPack import regions as _regions  # noqa: E402
+from KiMoPack.regions import cut_pairs as _cut_pairs  # noqa: E402
 from KiMoPack.regions import frame_spans as _frame_spans  # noqa: E402
 from KiMoPack.kinetics import models as _models  # noqa: E402
 from KiMoPack.shaping import sub_ds  # noqa: E402
@@ -1249,62 +1250,30 @@ def plot2d(ds, ax = None, title = None, intensity_range = None, baseunit = 'ps',
 	X, Y = np.meshgrid(x, y)
 	img=ax.pcolormesh(X,Y,ds.values,norm=norm,cmap=cmap,shading=shading)
 	#img=ax.pcolormesh(X,Y,ds.values,cmap=cmap,shading=shading)
-	if ignore_time_region is None:
-		pass
-	elif isinstance(ignore_time_region[0], numbers.Number):
-		ds.index=ds.index.astype(float)
+	ds.index = ds.index.astype(float)
+	for low, high in _cut_pairs(ignore_time_region):
 		try:
-			upper=ds.loc[ignore_time_region[1]:,:].index.values.min()
-			lower=ds.loc[:ignore_time_region[0],:].index.values.max()
-			if equal_energy_bin is not None:
-				rect = plt.Rectangle((x.max(),lower), width=abs(ax.get_xlim()[0]-ax.get_xlim()[1]), height=abs(upper-lower),facecolor=mid_color,alpha=1)#mid_color)
-			else:
-				rect = plt.Rectangle((x.min(),lower), width=abs(ax.get_xlim()[1]-ax.get_xlim()[0]), height=abs(upper-lower),facecolor=mid_color,alpha=1)#mid_color)
-			ax.add_patch(rect)
-		except:
-			pass
-	else:
-		ignore_time_region_loc=flatten(ignore_time_region)
-		for k in range(int(len(ignore_time_region_loc)/2+1)):
-			try:
-				upper=ds.loc[ignore_time_region[k+1]:,:].index.values.min()
-				lower=ds.loc[:ignore_time_region[k],:].index.values.max()
-				if equal_energy_bin is not None:
-					rect = plt.Rectangle((x.max(),lower), width=abs(ax.get_xlim()[0]-ax.get_xlim()[1]), height=abs(upper-lower),facecolor=mid_color,alpha=1)
-				else:
-					rect = plt.Rectangle((x.min(),lower), width=abs(ax.get_xlim()[1]-ax.get_xlim()[0]), height=abs(upper-lower),facecolor=mid_color,alpha=1)
-				ax.add_patch(rect)
-			except:
-				pass
+			lower = ds.loc[:low, :].index.values.max()
+			upper = ds.loc[high:, :].index.values.min()
+		except ValueError:
+			continue
+		# On an energy axis the wavelengths run the other way, so the patch
+		# is anchored at the far edge.
+		anchor = x.max() if equal_energy_bin is not None else x.min()
+		ax.add_patch(plt.Rectangle((anchor, lower),
+								   width=abs(ax.get_xlim()[1]-ax.get_xlim()[0]),
+								   height=abs(upper-lower), facecolor=mid_color, alpha=1))
 
-	if scattercut is None:
-		pass
-	elif isinstance(scattercut[0], numbers.Number):
+	# Grey out what was masked, so the map does not imply data where none was kept.
+	for low, high in _cut_pairs(scattercut, equal_energy_bin is not None):
 		try:
-			if equal_energy_bin is not None:
-				scattercut=[scipy.constants.h*scipy.constants.c/(a*1e-9*scipy.constants.electron_volt) for a in scattercut]
-				scattercut=scattercut[::-1]
-			upper=ds.loc[:,scattercut[1]:].columns.values.min()
-			lower=ds.loc[:,:scattercut[0]].columns.values.max()
-			width=abs(upper-lower)
-			rect = plt.Rectangle((lower,y.min()), height=abs(ax.get_ylim()[1]-ax.get_ylim()[0]), width=width, facecolor=mid_color,alpha=1)#mid_color)
-			ax.add_patch(rect)
-		except:
-			pass
-	else:
-		scattercut=flatten(scattercut)
-		if equal_energy_bin is not None:
-			scattercut=[scipy.constants.h*scipy.constants.c/(a*1e-9*scipy.constants.electron_volt) for a in scattercut]
-			scattercut=scattercut[::-1]
-		for k in range(int(len(scattercut)/2+1)):
-			try:
-				upper=ds.loc[:,scattercut[k][1]:].columns.values.min()
-				if upper==0:raise
-				lower=ds.loc[:,:scattercut[k][0]].columns.values.max()
-				rect = plt.Rectangle((lower.min()), height=abs(ax.get_ylim()[1]-ax.get_ylim()[0]), width=abs(upper-lower),facecolor=mid_color,alpha=1)#mid_color)
-				ax.add_patch(rect)	
-			except:
-				pass	
+			lower = ds.loc[:, :low].columns.values.max()
+			upper = ds.loc[:, high:].columns.values.min()
+		except ValueError:
+			continue  # the cut falls outside the plotted range
+		ax.add_patch(plt.Rectangle((lower, y.min()),
+								   height=abs(ax.get_ylim()[1]-ax.get_ylim()[0]),
+								   width=abs(upper-lower), facecolor=mid_color, alpha=1))
 	if use_colorbar:
 		mid=(intensity_range[1]+intensity_range[0])/2
 		if values is None:

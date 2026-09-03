@@ -166,3 +166,46 @@ class ComparedSpectraAcrossCuts(NumericTestCase):
             with self.subTest():
                 # Three spans, for this project and the other one.
                 self.assertEqual(len(ax.get_lines()), 6)
+
+
+class MaskedRegionsAreGreyedOut(NumericTestCase):
+    """plot2d shades what was masked, so the map does not imply data there.
+
+    Both multi-region paths were dead: one indexed the unflattened cut list,
+    the other subscripted a flattened float. Each failed into a bare except,
+    so nothing was ever drawn for more than one region.
+    """
+
+    def setUp(self):
+        self.ds, _ = make_dataset()
+        self.addCleanup(plt.close, "all")
+
+    def _patches(self, **kwargs):
+        import matplotlib.patches
+        fig, ax = plt.subplots()
+        pf.plot2d(self.ds, ax=ax, **kwargs)
+        return [p for p in ax.patches if isinstance(p, matplotlib.patches.Rectangle)]
+
+    def test_one_scatter_region_is_shaded(self):
+        self.assertEqual(len(self._patches(scattercut=[500, 540])), 1)
+
+    def test_every_scatter_region_is_shaded(self):
+        for count in range(1, 4):
+            with self.subTest(regions=count):
+                cuts = [[450 + 50 * i, 470 + 50 * i] for i in range(count)]
+                self.assertEqual(len(self._patches(scattercut=cuts)), count)
+
+    def test_every_ignored_time_region_is_shaded(self):
+        for count in range(1, 3):
+            with self.subTest(regions=count):
+                cuts = [[10**i, 3 * 10**i] for i in range(count)]
+                self.assertEqual(len(self._patches(ignore_time_region=cuts)), count)
+
+    def test_nothing_is_shaded_without_cuts(self):
+        self.assertEqual(len(self._patches()), 0)
+
+    def test_the_shading_covers_the_masked_range(self):
+        patch = self._patches(scattercut=[500, 540])[0]
+        x0, width = patch.get_x(), patch.get_width()
+        self.assertLessEqual(x0, 505)
+        self.assertGreaterEqual(x0 + width, 535)
