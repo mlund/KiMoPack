@@ -5257,7 +5257,9 @@ class TA():	# object wrapper for the whole
 		 '''
 		from matplotlib.widgets import Cursor
 		if cmap is None:cmap=self.cmap
-		if colors is None:colors=self.colors
+		# 'colors' was read from an attribute nothing ever assigned, so this
+		# plot raised on every call. line_colors is the setting that exists.
+		if colors is None:colors=getattr(self,'colors',self.line_colors)
 		if ds is None:
 			if not fitted:
 				if self.ds is None:
@@ -5334,24 +5336,17 @@ class TA():	# object wrapper for the whole
 				except:
 					pass
 					
-				if not fitted:	
-					ds_temp1 = sub_ds(ds = Frame_golay(ds,5,3), times = y, time_width_percent = self.time_width_percent, 
-									scattercut = self.scattercut, drop_scatter=True, bordercut = self.bordercut, 
-									ignore_time_region = self.ignore_time_region, wave_nm_bin = self.wave_nm_bin, equal_energy_bin=self.equal_energy_bin,
-									wavelength_bin = self.width)
-					ds_temp1.plot(ax=self.ax_time,style='-',color='red')
-					
-				else:
-					ds_temp1 = sub_ds(ds = modelled, times = y, time_width_percent = self.time_width_percent, 
-									scattercut = self.scattercut, drop_scatter=True, bordercut = self.bordercut, 
-									ignore_time_region = self.ignore_time_region, wave_nm_bin = self.wave_nm_bin,  equal_energy_bin=self.equal_energy_bin,
-									wavelength_bin = self.width)
-					ds_temp1.plot(ax=self.ax_time,style='-',color='red')
-					
-				ds_temp = sub_ds(ds = ds, times = y, time_width_percent = self.time_width_percent, 
-									scattercut = self.scattercut, drop_scatter=True, bordercut = self.bordercut, 
-									ignore_time_region = self.ignore_time_region, wave_nm_bin = self.wave_nm_bin,  equal_energy_bin=self.equal_energy_bin,
-									wavelength_bin = self.width)
+				spectra_at = _DataSelection(scattercut=self.scattercut, bordercut=self.bordercut,
+											ignore_time_region=self.ignore_time_region,
+											wave_nm_bin=self.wave_nm_bin, wavelength_bin=self.width,
+											equal_energy_bin=self.equal_energy_bin)
+				source = modelled if fitted else Frame_golay(ds, 5, 3)
+				ds_temp1 = spectra_at.apply(source, times=y,
+											time_width_percent=self.time_width_percent, drop_scatter=True)
+				ds_temp1.plot(ax=self.ax_time, style='-', color='red')
+
+				ds_temp = spectra_at.apply(ds, times=y,
+										   time_width_percent=self.time_width_percent, drop_scatter=True)
 				ds_temp.plot(ax=self.ax_time,style='*',color='black')
 				self.ax_time.plot(self.ax_time.get_xlim(),[0,0],'gray')
 				if not fitted:
@@ -5369,20 +5364,15 @@ class TA():	# object wrapper for the whole
 				if self.width is None:
 					self.width = 10
 				
-				if not fitted:
-					ds_temp1 = sub_ds(ds = Frame_golay(ds), wavelength = x, scattercut = self.scattercut, drop_scatter=True, 
-								bordercut = self.bordercut, ignore_time_region = self.ignore_time_region, 
-								wave_nm_bin = self.wave_nm_bin,wavelength_bin = self.width)
-					self.ax_kinetic.plot(ds_temp1.values,ds_temp1.index.values,'-',label='%.0f smoothed'%x,color='red')
-				else:
-					ds_temp1 = sub_ds(ds = modelled, wavelength = x, scattercut = self.scattercut, drop_scatter=True, 
-								bordercut = self.bordercut, ignore_time_region = self.ignore_time_region, 
-								wave_nm_bin = self.wave_nm_bin, wavelength_bin = self.width)
-					self.ax_kinetic.plot(ds_temp1.values,ds_temp1.index.values,'-',label='%.0f fitted'%x,color='red')
-				
-				ds_temp = sub_ds(ds = ds, wavelength = x, scattercut = self.scattercut, drop_scatter=True, 
-								bordercut = self.bordercut, ignore_time_region = self.ignore_time_region, 
-								wave_nm_bin = self.wave_nm_bin, wavelength_bin = self.width)
+				kinetics_at = _DataSelection(scattercut=self.scattercut, bordercut=self.bordercut,
+											 ignore_time_region=self.ignore_time_region,
+											 wave_nm_bin=self.wave_nm_bin, wavelength_bin=self.width)
+				source = modelled if fitted else Frame_golay(ds)
+				ds_temp1 = kinetics_at.apply(source, wavelength=x, drop_scatter=True)
+				self.ax_kinetic.plot(ds_temp1.values, ds_temp1.index.values, '-',
+									 label='%.0f %s'%(x, 'fitted' if fitted else 'smoothed'), color='red')
+
+				ds_temp = kinetics_at.apply(ds, wavelength=x, drop_scatter=True)
 				
 				self.ax_kinetic.set_xlim(min([0,min(ds_temp.values)]),max([max(ds_temp.values),0]))
 
