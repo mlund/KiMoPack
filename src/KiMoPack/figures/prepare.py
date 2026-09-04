@@ -22,6 +22,29 @@ MARKER_WIDTH = 1.5
 LEGEND_TITLES = {"smoothed": "lines = smoothed", "data": None, "fitted": "lines = fit"}
 
 
+def line_mode(lines_are):
+    """The drawing style named by ``lines_are``."""
+    for known in LINE_STYLES:
+        if known in lines_are:
+            return known
+    raise ValueError(
+        f"unknown lines_are {lines_are!r}; expected one of {', '.join(LINE_STYLES)}")
+
+
+def delays_within(ds, rel_time):
+    """The requested delays the measurement actually covers.
+
+    Asking for one outside the range would otherwise draw the nearest delay
+    instead, labelled as the one that was asked for.
+    """
+    if rel_time is None:
+        return []
+    if not hasattr(rel_time, "__iter__"):
+        rel_time = [rel_time]
+    times = ds.index.values.astype(float)
+    return [t for t in rel_time if times.min() <= t <= times.max()]
+
+
 def _traces_of(frame, cuts, colors, style, alpha, linewidth, to_energy, transform=None,
                zorder=None):
     """One trace per column per unbroken run of the index.
@@ -57,17 +80,11 @@ def spectra_panel(ds, selection, view, colors, rel_time=None, time_width_percent
     decide. ``shade_masked`` reports the masked regions for shading; line
     plots have never shaded them, so it is off unless asked for.
     """
-    if not hasattr(rel_time, "__iter__"):
-        rel_time = [rel_time]
-    times = ds.index.values.astype(float)
-    # Asking for a delay the measurement does not cover would silently
-    # produce the nearest one instead, which is worse than leaving it out.
-    rel_time = [t for t in rel_time if times.min() <= t <= times.max()]
-
+    rel_time = delays_within(ds, rel_time)
     sliced = selection.apply(ds, times=rel_time, time_width_percent=time_width_percent,
                              drop_scatter=True, from_fit=from_fit)
     to_energy = selection.equal_energy_bin is not None
-    style = LINE_STYLES[next(k for k in LINE_STYLES if k in lines_are)]
+    style = LINE_STYLES[line_mode(lines_are)]
 
     if "smoothed" in lines_are:
         traces = _traces_of(sliced, selection.scattercut, colors, style, 1.0, linewidth,
@@ -94,7 +111,7 @@ def spectra_panel(ds, selection, view, colors, rel_time=None, time_width_percent
         traces=tuple(traces),
         title=title,
         shaded=tuple(cut_pairs(selection.scattercut, to_energy)) if shade_masked else (),
-        legend_title=LEGEND_TITLES[next(k for k in LEGEND_TITLES if k in lines_are)],
+        legend_title=LEGEND_TITLES[line_mode(lines_are)],
     )
 
 
@@ -125,7 +142,7 @@ def kinetics_panel(ds, selection, view, colors, wavelength=None, lines_are="smoo
     if not hasattr(wavelength, "__iter__"):
         wavelength = [wavelength]
     sliced = selection.apply(ds, wavelength=wavelength, drop_ignore=True, from_fit=from_fit)
-    style = LINE_STYLES[next(k for k in LINE_STYLES if k in lines_are)]
+    style = LINE_STYLES[line_mode(lines_are)]
 
     if "smoothed" in lines_are:
         traces = _traces_of(sliced, selection.ignore_time_region, colors, style, 1.0, linewidth,
@@ -150,5 +167,5 @@ def kinetics_panel(ds, selection, view, colors, wavelength=None, lines_are="smoo
         traces=tuple(traces),
         title=title,
         shaded=tuple(cut_pairs(selection.ignore_time_region)) if shade_masked else (),
-        legend_title=LEGEND_TITLES[next(k for k in LEGEND_TITLES if k in lines_are)],
+        legend_title=LEGEND_TITLES[line_mode(lines_are)],
     )

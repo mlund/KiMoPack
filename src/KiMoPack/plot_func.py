@@ -87,6 +87,7 @@ from KiMoPack.regions import cut_pairs as _cut_pairs  # noqa: E402
 from KiMoPack.regions import frame_spans as _frame_spans  # noqa: E402
 from KiMoPack.kinetics import models as _models  # noqa: E402
 from KiMoPack.figures.mpl import draw_traces as _draw_traces  # noqa: E402
+from KiMoPack.figures.prepare import delays_within as _delays_within  # noqa: E402
 from KiMoPack.figures.prepare import kinetics_panel as _kinetics_panel  # noqa: E402
 from KiMoPack.figures.prepare import spectra_panel as _spectra_panel  # noqa: E402
 from KiMoPack.figures.settings import ViewSettings as _ViewSettings  # noqa: E402
@@ -2617,10 +2618,10 @@ def plot_time(ds, ax = None, rel_time = None, time_width_percent = 10, ignore_ti
 
 		'''
 	global halfsize
-	if not hasattr(rel_time,'__iter__'):rel_time=[rel_time]
-	time_min = ds.index.values.astype('float').min()
-	time_max = ds.index.values.astype('float').max()
-	rel_time = [a for a in rel_time if time_min <= a <= time_max]
+	if rel_time is None:
+		raise ValueError('plot_time draws spectra at chosen delays; '
+						 'pass rel_time, e.g. rel_time=[1, 10, 100]')
+	rel_time = _delays_within(ds, rel_time)
 	
 	if isinstance(cmap,list) or isinstance(cmap,np.ndarray):
 		colors=cmap[color_offset:]
@@ -3858,7 +3859,8 @@ def err_func_multi(paras, mod = 'paral', final = False, log_fit = False, multi_p
 		re = fill_int(ds=pandas.concat(ds_stack), c=pandas.concat(c_stack),
 					  final=final, return_shapes=dump_shapes)
 		if final:
-			re['c'] = c
+			# re['c'] is the stacked concentration matrix fill_int was given;
+			# _split_stacked_result cuts it back apart per project.
 			if ext_spectra is not None:
 				_restore_external_spectra(re, c, ext_spectra, pardf)
 			return_listen = _split_stacked_result(re, heights, par_stack, filename)

@@ -115,3 +115,28 @@ class SeparateSpectra(NumericTestCase):
                                         multi_project=projects, unique_parameter=["t0"])
         self.assertNotAlmostEqual(float(shared), float(per_project),
                                   msg="the second project's own t0 should have been used")
+
+
+class SharedSpectraConcentrations(NumericTestCase):
+    """Each project's concentrations must be its own.
+
+    The joint solve stacks every dataset into one tall matrix; the result has
+    to be cut back apart along the same boundaries.
+    """
+
+    def test_each_project_gets_its_own_concentrations(self):
+        projects = _projects()
+        results = pf.err_func_multi(_parameters(), mod="paral", final=True,
+                                    multi_project=projects, same_DAS=True)
+        for result in results:
+            with self.subTest():
+                self.assertEqual(len(result["c"].index), len(result["A"].index))
+
+    def test_the_concentrations_line_up_with_the_matrices(self):
+        projects = _projects()
+        results = pf.err_func_multi(_parameters(), mod="paral", final=True,
+                                    multi_project=projects, same_DAS=True)
+        for result in results:
+            with self.subTest():
+                self.assertAllClose(result["c"].index.values.astype(float),
+                                    result["A"].index.values.astype(float))

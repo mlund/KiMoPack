@@ -141,8 +141,9 @@ def detect_chirp(ds, t_range=(-2, 2), method="sigmoid", poly_order=4, t0_guess=0
 
     wavelengths = ds.columns.values.astype(float)
     times = ds.index.values.astype(float)
-    # A polynomial cannot have more free parameters than there are channels.
-    poly_order = min(poly_order, max(1, len(wavelengths) - 2))
+    # The stored format holds five coefficients, so a fourth-order curve is
+    # the most that can be replayed.
+    poly_order = min(poly_order, CHIRP_COEFFICIENTS - 1, max(1, len(wavelengths) - 2))
 
     mask = (times >= t_range[0]) & (times <= t_range[1])
     if mask.sum() < 5:
@@ -166,6 +167,10 @@ def detect_chirp(ds, t_range=(-2, 2), method="sigmoid", poly_order=4, t0_guess=0
     if len(onsets) < 2:
         coefficients[-1] = np.median(list(onsets.values())) if onsets else t0_guess
     else:
+        # Channels where no onset was found cannot support the fit, so the
+        # order is limited by what was actually detected, not by how many
+        # channels were looked at.
+        poly_order = min(poly_order, len(onsets) - 1)
         fitted = np.polyfit(np.array(list(onsets)), np.array(list(onsets.values())), poly_order)
         coefficients[CHIRP_COEFFICIENTS - len(fitted):] = list(fitted)
 

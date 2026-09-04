@@ -49,14 +49,14 @@ def normalise_cuts(cuts):
     return [tuple(pair) for pair in merged]
 
 
-def contiguous_spans(cuts):
+def contiguous_spans(cuts, to_energy=False):
     """Spans between the cuts, as ``(start, stop)`` bounds for ``.loc``.
 
     ``None`` at either end means "open" — run to the edge of the data. With no
     cuts the result is a single fully open span, so a caller can loop over the
     result unconditionally instead of special-casing the common case.
     """
-    pairs = normalise_cuts(cuts)
+    pairs = cut_pairs(cuts, to_energy)
     if not pairs:
         return [(None, None)]
 
@@ -91,14 +91,8 @@ def frame_spans(frame, cuts, to_energy=False):
     one piece that should carry the legend entry, so a trace broken into three
     does not appear three times in the legend.
     """
-    pairs = cut_pairs(cuts, to_energy)
-    spans = [(None, None)] if not pairs else (
-        [(None, pairs[0][0])]
-        + [(a[1], b[0]) for a, b in zip(pairs, pairs[1:], strict=False)]
-        + [(pairs[-1][1], None)]
-    )
     first = True
-    for start, stop in spans:
+    for start, stop in contiguous_spans(cuts, to_energy):
         piece = frame.loc[start:stop]
         if len(piece.index) == 0:
             continue

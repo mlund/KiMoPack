@@ -96,6 +96,12 @@ def Frame_golay(df, window=5, order=3, transpose=False):
     order = min(len(df.index.values), order)
     if window % 2 == 0:
         window -= 1
+    if order >= window:
+        # Too few points to fit the polynomial through. Returning the data
+        # unsmoothed is what the caller wants; a masked region can leave a
+        # span of two or three channels, and losing the figure over it is
+        # worse than a piece that is drawn raw.
+        return df.T.copy() if transpose else df.copy()
 
     if isinstance(df, pandas.DataFrame):
         smoothed = pandas.DataFrame(

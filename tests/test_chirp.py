@@ -154,3 +154,31 @@ class ReplayingAStoredCorrection(NumericTestCase):
         before = self.ds.copy()
         pf.Fix_Chirp(self.ds, fitcoeff=list(self.coeffs))
         self.assertUnchanged(self.ds, before)
+
+
+class PolynomialOrder(NumericTestCase):
+    """The curve cannot have more freedom than the data supports."""
+
+    def test_the_order_is_limited_by_the_detected_onsets(self):
+        """Three points cannot pin down a fourth-order polynomial."""
+        ds, _ = make_chirped_dataset(coeffs=(0.0, 0.0, 0.0, -4e-3, 2.2))
+        flat = ds.copy()
+        for column in list(flat.columns)[3:]:
+            flat[column] = 1.0
+        fit = chirp.detect_chirp(flat, t_range=(-4, 6))
+        self.assertLessEqual(fit.poly_order, max(1, len(fit.onsets) - 1))
+
+    def test_never_more_coefficients_than_the_format_holds(self):
+        """Chirp is stored and replayed as five coefficients throughout."""
+        ds, _ = make_chirped_dataset()
+        for order in (2, 4, 6, 9):
+            with self.subTest(order=order):
+                fit = chirp.detect_chirp(ds, t_range=(-4, 6), poly_order=order)
+                self.assertEqual(len(fit.coefficients), chirp.CHIRP_COEFFICIENTS)
+
+    def test_a_high_order_request_still_corrects(self):
+        ds, expected = make_chirped_dataset(coeffs=(0.0, 0.0, 0.0, -4e-3, 2.2))
+        corrected, coefficients, _ = chirp.find_chirp_sparse(ds, t_range=(-4, 6),
+                                                             poly_order=9, plot=False)
+        self.assertEqual(len(coefficients), 5)
+        self.assertEqual(corrected.shape, ds.shape)
