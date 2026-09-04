@@ -22,4 +22,8 @@ jobs:
           enable-cache: true
       - run: uv sync --group dev --python ${{ matrix.python-version }}
       - run: uv run --python ${{ matrix.python-version }} ruff check .
+      # The bundled datasets are in the checkout, so run the integration tier too:
+      # it is what pins the real fitted rates and the correction chain.
       - run: uv run --python ${{ matrix.python-version }} python -m unittest discover -s tests -t . -v
+        env:
+          KIMOPACK_SLOW_TESTS: "1"
