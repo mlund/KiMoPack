@@ -110,3 +110,47 @@ class LegendLayout(NumericTestCase):
         pf.plot1d(ds, ax=ax, wavelength=[450, 550, 650], width=10, lines_are="smoothed")
         pf.plot1d(ds, ax=ax, wavelength=[450, 550, 650], width=10, lines_are="data", subplot=True)
         self.assertEqual(ax.get_legend()._ncols, 2)
+
+
+class FitOverviewPanels(NumericTestCase):
+    """The three-panel comparison: measured, modelled, and the difference.
+
+    All three show the same matrix shape on the same axes; only the residual
+    is exaggerated, or it would look uniformly blank beside the other two.
+    """
+
+    def setUp(self):
+        self.ta = _fitted()
+        self.addCleanup(plt.close, "all")
+
+    def _panels(self, **kwargs):
+        fig = pf.plot2d_fit(self.ta.re, cmap=plt.get_cmap("seismic"),
+                            error_matrix_amplification=20, **kwargs)
+        # The three map axes are created first; colour bars are appended after.
+        return fig.get_axes()[:3]
+
+    def test_three_maps_are_drawn(self):
+        self.assertEqual(len(self._panels()), 3)
+
+    def test_the_residual_is_shown_on_an_exaggerated_scale(self):
+        maps = self._panels(intensity_range=4e-3)
+        measured = max(abs(v) for v in maps[0].collections[0].get_clim())
+        residual = max(abs(v) for v in maps[2].collections[0].get_clim())
+        self.assertAlmostEqual(measured / residual, 20, places=6)
+
+    def test_the_first_two_share_one_scale(self):
+        maps = self._panels(intensity_range=4e-3)
+        self.assertEqual(maps[0].collections[0].get_clim(), maps[1].collections[0].get_clim())
+
+    def test_panels_are_titled(self):
+        titles = [a.get_title() for a in self._panels()]
+        self.assertEqual(titles, ["Measured", "Calculated", "Difference"])
+
+    def test_labels_move_inside_when_stacked(self):
+        """With patches the name goes in the corner, so no vertical space is lost."""
+        maps = self._panels(patches=True)
+        self.assertEqual([a.get_title() for a in maps], ["", "", ""])
+        for ax in maps:
+            with self.subTest():
+                self.assertTrue(any(t.get_text() in ("measured", "calculated", "difference")
+                                    for t in ax.texts))

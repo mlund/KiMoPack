@@ -1300,6 +1300,21 @@ def plot2d(ds, ax = None, title = None, intensity_range = None, baseunit = 'ps',
 	return fig
 
 
+def _label_in_corner(ax, text, scale_type):
+	'''Name a panel inside its own axes.
+
+	Used when the three fit panels are stacked, where a title above each one
+	would cost a third of the vertical space.
+	'''
+	ax.set_title(label='')
+	x_width = (ax.get_xlim()[1]-ax.get_xlim()[0])/4
+	y_width = (ax.get_ylim()[1])/8 if 'lin' in scale_type else (ax.get_ylim()[1])/1.5
+	ax.add_patch(plt.Rectangle((ax.get_xlim()[1]-x_width, ax.get_ylim()[1]-y_width),
+							   x_width, y_width, facecolor="white", alpha=0.5))
+	ax.text(ax.get_xlim()[1]-x_width+x_width*0.1, ax.get_ylim()[1]-y_width+y_width*0.1,
+			text, fontsize=16)
+
+
 def plot2d_fit(re, error_matrix_amplification=5, use_images=True, patches=False, title = None, 
 				intensity_range = None, baseunit = 'ps', timelimits = None,
 				scattercut = None, bordercut = None, wave_nm_bin = None, ignore_time_region = None,
@@ -1452,51 +1467,30 @@ def plot2d_fit(re, error_matrix_amplification=5, use_images=True, patches=False,
 		fig,ax=plt.subplots(3,figsize=(4.5,5.5))
 	else:
 		fig,ax=plt.subplots(3,figsize=(9,11))
-	if patches:			
-		plot2d(re['A'], cmap = cmap, log_scale = log_scale, intensity_range = intensity_range, ax = ax[0], 
-				baseunit = baseunit, use_colorbar = plot_with_colorbar, levels = levels, plot_type = scale_type, 
-				ignore_time_region = ignore_time_region,  lintresh = lintresh, linscale = linscale, bordercut = bordercut,
-				scattercut = scattercut, timelimits = timelimits, data_type = data_type, equal_energy_bin = equal_energy_bin, 
-				values=values, from_fit = True)
-		plot2d(re['AC'], cmap = cmap, log_scale = log_scale, intensity_range = intensity_range, ax = ax[1], 
-				baseunit = baseunit, use_colorbar = plot_with_colorbar, levels = levels, plot_type = scale_type, 
-				ignore_time_region = ignore_time_region,  lintresh = lintresh, linscale = linscale, bordercut = bordercut, 
-				scattercut = scattercut, timelimits = timelimits, data_type = data_type, equal_energy_bin = equal_energy_bin, 
-				values=values,from_fit = True)
-		if values is not None:
-			values=np.array(values)/error_matrix_amplification
-		plot2d(re['AE'], cmap = cmap, log_scale = log_scale, intensity_range = np.array(intensity_range)/error_matrix_amplification, ax = ax[2], 
-				baseunit = baseunit, use_colorbar = plot_with_colorbar, levels = levels, plot_type = scale_type, 
-				ignore_time_region = ignore_time_region,  lintresh = lintresh, linscale = linscale, bordercut = bordercut, scattercut = scattercut, 
-				timelimits = timelimits, data_type = data_type, equal_energy_bin = equal_energy_bin, values=values, from_fit = True)
-		for i in range(3):
-			ax[i].set_title(label='')
-			stringen=['measured','calculated','difference']
-			x_width=(ax[i].get_xlim()[1]-ax[i].get_xlim()[0])/4
-			if 'lin' in scale_type:
-				y_width=(ax[i].get_ylim()[1])/8
-			else:
-				y_width=(ax[i].get_ylim()[1])/1.5
-			rect = plt.Rectangle((ax[i].get_xlim()[1]-x_width, ax[i].get_ylim()[1]-y_width), x_width, y_width,facecolor="white", alpha=0.5)
-			ax[i].add_patch(rect)
-			ax[i].text(ax[i].get_xlim()[1]-x_width+x_width*0.1,ax[i].get_ylim()[1]-y_width+y_width*0.1,stringen[i],fontsize=16)								 
-			fig.subplots_adjust(left=0.15, bottom=0.067, right=0.97, top=0.985, wspace=0.0, hspace=0.258)
-	else:
-		plot2d(re['A'], cmap = cmap, title = 'Measured', log_scale = log_scale, intensity_range = intensity_range, 
-				ax = ax[0], baseunit = baseunit, use_colorbar = plot_with_colorbar, levels = levels, plot_type = scale_type, 
-				ignore_time_region = ignore_time_region,  lintresh = lintresh, linscale = linscale, bordercut = bordercut, scattercut = scattercut, 
-				timelimits = timelimits, data_type = data_type, equal_energy_bin = equal_energy_bin, values=values, from_fit = True)																					
-		plot2d(re['AC'], cmap = cmap, title = 'Calculated', log_scale = log_scale, intensity_range = intensity_range, 
-				ax = ax[1], baseunit = baseunit, use_colorbar = plot_with_colorbar, levels = levels, plot_type = scale_type, 
-				ignore_time_region = ignore_time_region,  lintresh = lintresh, linscale = linscale, bordercut = bordercut, scattercut = scattercut, 
-				timelimits = timelimits , data_type = data_type, equal_energy_bin = equal_energy_bin, values=values, from_fit = True)
-		if values is not None:
-			values=np.array(values)/error_matrix_amplification
-		plot2d(re['AE'], cmap = cmap, title = 'Difference', log_scale = log_scale, intensity_range = np.array(intensity_range)/error_matrix_amplification, 
-				ax = ax[2], baseunit = baseunit, use_colorbar = plot_with_colorbar, levels = levels, plot_type = scale_type, 
-				ignore_time_region = ignore_time_region,  lintresh = lintresh, linscale = linscale, bordercut = bordercut, scattercut = scattercut, 
-				timelimits = timelimits, data_type = data_type, equal_energy_bin = equal_energy_bin, values=values, from_fit = True)
-		#fig.subplots_adjust(left=0.15, bottom=0.067, right=0.97, top=0.97, wspace=0.0, hspace=0.398)
+
+	# What was measured, what the model says, and what it failed to explain.
+	# The residual is shown on an exaggerated colour scale, or it would look
+	# uniformly blank beside the other two.
+	panels = (('Measured', re['A'], 1),
+			  ('Calculated', re['AC'], 1),
+			  ('Difference', re['AE'], error_matrix_amplification))
+	for axis, (label, matrix, exaggeration) in zip(ax, panels, strict=True):
+		if exaggeration == 1:
+			limits, ticks = intensity_range, values
+		else:
+			limits = np.array(intensity_range)/exaggeration
+			ticks = None if values is None else np.array(values)/exaggeration
+		plot2d(matrix, cmap = cmap, log_scale = log_scale, intensity_range = limits, ax = axis,
+				title = None if patches else label, baseunit = baseunit,
+				use_colorbar = plot_with_colorbar, levels = levels, plot_type = scale_type,
+				ignore_time_region = ignore_time_region, lintresh = lintresh, linscale = linscale,
+				bordercut = bordercut, scattercut = scattercut, timelimits = timelimits,
+				data_type = data_type, equal_energy_bin = equal_energy_bin, values = ticks,
+				from_fit = True)
+		if patches:
+			_label_in_corner(axis, label.lower(), scale_type)
+	if patches:
+		fig.subplots_adjust(left=0.15, bottom=0.067, right=0.97, top=0.985, wspace=0.0, hspace=0.258)
 	fig.tight_layout()
 	return fig
 	
