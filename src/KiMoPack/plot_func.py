@@ -87,6 +87,7 @@ from KiMoPack.regions import cut_pairs as _cut_pairs  # noqa: E402
 from KiMoPack.regions import frame_spans as _frame_spans  # noqa: E402
 from KiMoPack.kinetics import models as _models  # noqa: E402
 from KiMoPack.figures.mpl import draw_traces as _draw_traces  # noqa: E402
+from KiMoPack.figures.prepare import kinetics_panel as _kinetics_panel  # noqa: E402
 from KiMoPack.figures.prepare import spectra_panel as _spectra_panel  # noqa: E402
 from KiMoPack.figures.settings import ViewSettings as _ViewSettings  # noqa: E402
 from KiMoPack.shaping import DataSelection as _DataSelection  # noqa: E402
@@ -2642,7 +2643,7 @@ def plot_time(ds, ax = None, rel_time = None, time_width_percent = 10, ignore_ti
 	# What to draw is decided without matplotlib; this only paints it.
 	panel = _spectra_panel(ds, selection, view, colors, rel_time=rel_time,
 						   time_width_percent=time_width_percent, lines_are=lines_are,
-						   linewidth=linewidth, from_fit=from_fit)
+						   linewidth=linewidth, from_fit=from_fit, behind=subplot)
 	ds = selection.apply(ds, times=rel_time, time_width_percent=time_width_percent,
 						 drop_scatter=True, from_fit=from_fit)
 	_draw_traces(panel, ax1)
@@ -2863,21 +2864,14 @@ def plot1d(ds = None, wavelength = None, width = None, ax = None, subplot = Fals
 		else:
 			colors = colm(np.arange(color_offset, len(wavelength)+color_offset), cmap = line_colors)
 	selection = _DataSelection(scattercut=scattercut, wavelength_bin=width,
-								   ignore_time_region=ignore_time_region)
+							   ignore_time_region=ignore_time_region)
+	view = _ViewSettings(intensity_range=intensity_range, data_type=data_type,
+						 lintresh=lintresh, linscale=linscale)
+	panel = _kinetics_panel(ds, selection, view, colors, wavelength=wavelength,
+							lines_are=lines_are, linewidth=linewidth, from_fit=from_fit,
+							plot_type=plot_type, timelimits=timelimits, behind=subplot)
 	ds = selection.apply(ds, wavelength=wavelength, drop_ignore=True, from_fit=from_fit)
-	if 'smoothed' in lines_are:
-		for piece, first in _frame_spans(ds, ignore_time_region):
-			smoothed = Frame_golay(piece, window = 5, order = 3)
-			smoothed.plot(ax = ax1, style = '-', color = colors, legend = False,
-						  lw = linewidth, **({} if first else {'label': '_nolegend_'}))
-		
-	elif 'data' in lines_are:
-		if subplot:ds.plot(ax = ax1, style = '*', color = colors, legend = False, zorder = 0, label='_nolegend_')
-		else:	   ds.plot(ax = ax1, style = '*', color = colors, legend = False)
-	elif 'fitted' in lines_are:
-		for piece, first in _frame_spans(ds, ignore_time_region):
-			piece.plot(ax = ax1, style='-', color = colors, legend = False,
-					   lw = linewidth, **({} if first else {'label': '_nolegend_'}))
+	_draw_traces(panel, ax1)
 	#Legend
 	if not subplot:
 		handles, labels = ax1.get_legend_handles_labels()
@@ -2921,9 +2915,8 @@ def plot1d(ds = None, wavelength = None, width = None, ax = None, subplot = Fals
 				loc='upper left', bbox_to_anchor=(1.03, 1), borderaxespad=0.)
 
 		
-	x=ds.index.values.astype('float')
-	#limits and ticks
-	if timelimits is None:timelimits=[min(x),max(x)]
+	# The axis was decided together with the traces; this only applies it.
+	timelimits = panel.x.limits
 	if "symlog" in plot_type:
 		ax1.set_xscale('symlog', linthresh=lintresh,subs=range(2,9),linscale=linscale)
 		try:

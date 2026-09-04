@@ -33,6 +33,8 @@ class Trace:
     style: str = "solid"
     width: float = 1.0
     alpha: float = 1.0
+    #: Draw order. Measured points sit behind the curve drawn through them.
+    zorder: object = None
 
     def __post_init__(self):
         if len(self.x) != len(self.y):

@@ -19,7 +19,8 @@ def draw_traces(panel, ax):
     for trace in panel.traces:
         ax.plot(trace.x, trace.y, _STYLES.get(trace.style, "-"),
                 color=trace.color, alpha=trace.alpha, lw=trace.width,
-                label=trace.label if trace.in_legend else "_nolegend_")
+                label=trace.label if trace.in_legend else "_nolegend_",
+                **({} if trace.zorder is None else {"zorder": trace.zorder}))
 
     for low, high in panel.shaded:
         ax.axvspan(low, high, color="0.85", zorder=0, label="_nolegend_")

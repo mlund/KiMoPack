@@ -122,3 +122,49 @@ class Rendering(NumericTestCase):
         draw_panel(panel, ax)
         self.assertAllClose(ax.get_xlim(), [430, 670])
         self.assertAllClose(ax.get_ylim(), [-2e-3, 2e-3])
+
+
+class KineticsPanel(NumericTestCase):
+    """The mirror of a spectra panel: signal against delay."""
+
+    def setUp(self):
+        self.ds, _ = make_dataset()
+        self.view = ViewSettings(data_type="differential Absorption", lintresh=0.3, linscale=1)
+
+    def _panel(self, selection=None, **kwargs):
+        from KiMoPack.figures.prepare import kinetics_panel
+
+        return kinetics_panel(self.ds, selection or DataSelection(wavelength_bin=10), self.view,
+                              COLORS, wavelength=kwargs.pop("wavelength", [450, 550]), **kwargs)
+
+    def test_one_trace_per_requested_wavelength(self):
+        self.assertEqual(len(self._panel().traces), 2)
+
+    def test_an_ignored_region_breaks_every_trace(self):
+        selection = DataSelection(wavelength_bin=10, ignore_time_region=[[1, 5], [50, 100]])
+        self.assertEqual(len(self._panel(selection=selection).traces), 6)
+
+    def test_a_broken_trace_is_listed_once(self):
+        selection = DataSelection(wavelength_bin=10, ignore_time_region=[[1, 5], [50, 100]])
+        self.assertEqual(len(self._panel(selection=selection).legend_labels()), 2)
+
+    def test_the_time_axis_is_symmetric_log_by_default(self):
+        """Transient data crosses zero, so a plain log axis cannot show it."""
+        panel = self._panel()
+        self.assertEqual(panel.x.scale, "symlog")
+        self.assertEqual(panel.x.linthresh, 0.3)
+
+    def test_a_log_axis_cannot_start_at_or_below_zero(self):
+        panel = self._panel(plot_type="log", timelimits=[-5, 500])
+        self.assertEqual(panel.x.scale, "log")
+        self.assertGreater(panel.x.limits[0], 0)
+
+    def test_a_linear_axis_keeps_the_limits_it_was_given(self):
+        panel = self._panel(plot_type="lin", timelimits=[-1, 200])
+        self.assertEqual(panel.x.scale, "linear")
+        self.assertEqual(panel.x.limits, [-1, 200])
+
+    def test_limits_default_to_the_measured_range(self):
+        panel = self._panel()
+        self.assertAllClose(panel.x.limits,
+                            [self.ds.index.values.min(), self.ds.index.values.max()])

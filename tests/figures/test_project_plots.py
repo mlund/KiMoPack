@@ -85,3 +85,28 @@ class PlotFitOutput(NumericTestCase):
         ds, _ = make_dataset()
         unfitted = pf.TA("synthetic", ds=ds)
         self.assertIs(unfitted.Plot_fit_output(), False)
+
+
+class LegendLayout(NumericTestCase):
+    """The legend uses the column count the code asks for.
+
+    plot1d computes ncol from the number of entries, but the marker pass that
+    followed went through pandas, which rebuilt the existing legend with its
+    own defaults and silently dropped that choice.
+    """
+
+    def setUp(self):
+        self.addCleanup(plt.close, "all")
+
+    def test_the_requested_column_count_survives(self):
+        ds, _ = make_dataset()
+        fig = pf.plot1d(ds, wavelength=[450, 550, 650], width=10, lines_are="smoothed")
+        legend = fig.get_axes()[0].get_legend()
+        self.assertEqual(legend._ncols, 2)
+
+    def test_a_following_marker_pass_does_not_reset_it(self):
+        ds, _ = make_dataset()
+        fig, ax = plt.subplots()
+        pf.plot1d(ds, ax=ax, wavelength=[450, 550, 650], width=10, lines_are="smoothed")
+        pf.plot1d(ds, ax=ax, wavelength=[450, 550, 650], width=10, lines_are="data", subplot=True)
+        self.assertEqual(ax.get_legend()._ncols, 2)
