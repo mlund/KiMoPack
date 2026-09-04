@@ -137,3 +137,9 @@ alt/
 video use/
 
 _version.py
+# Analysis output written next to the tutorial data when the notebooks or the
+# test suite are run in place.
+Tutorial_Notebooks/Data/**/Data_export/
+Workflow_tools/Data/**/Data_export/
+result_figures/
+combined.SIA
