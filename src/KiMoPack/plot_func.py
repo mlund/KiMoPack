@@ -86,6 +86,8 @@ from KiMoPack import regions as _regions  # noqa: E402
 from KiMoPack.regions import cut_pairs as _cut_pairs  # noqa: E402
 from KiMoPack.regions import frame_spans as _frame_spans  # noqa: E402
 from KiMoPack.kinetics import models as _models  # noqa: E402
+from KiMoPack.figures.mpl import draw_traces as _draw_traces  # noqa: E402
+from KiMoPack.figures.prepare import spectra_panel as _spectra_panel  # noqa: E402
 from KiMoPack.figures.settings import ViewSettings as _ViewSettings  # noqa: E402
 from KiMoPack.shaping import DataSelection as _DataSelection  # noqa: E402
 from KiMoPack.shaping import sub_ds  # noqa: E402
@@ -2636,26 +2638,17 @@ def plot_time(ds, ax = None, rel_time = None, time_width_percent = 10, ignore_ti
 	selection = _DataSelection(scattercut=scattercut, bordercut=bordercut, baseunit=baseunit,
 							   ignore_time_region=ignore_time_region, wave_nm_bin=wave_nm_bin,
 							   equal_energy_bin=equal_energy_bin)
+	view = _ViewSettings(intensity_range=intensity_range, data_type=data_type)
+	# What to draw is decided without matplotlib; this only paints it.
+	panel = _spectra_panel(ds, selection, view, colors, rel_time=rel_time,
+						   time_width_percent=time_width_percent, lines_are=lines_are,
+						   linewidth=linewidth, from_fit=from_fit)
 	ds = selection.apply(ds, times=rel_time, time_width_percent=time_width_percent,
 						 drop_scatter=True, from_fit=from_fit)
-	if 'smoothed' in lines_are:
-		for piece, first in _frame_spans(ds, scattercut, equal_energy_bin is not None):
-			smoothed = Frame_golay(piece, window = 5, order = 3, transpose = False)
-			smoothed.plot(ax = ax1, style = '-', color = colors, legend = False,
-						  lw = linewidth, **({} if first else {'label': '_nolegend_'}))
-		if not subplot:
-			leg = ax1.legend(ds,title = 'lines = smoothed', loc='best', labelspacing = 0, ncol = 2, columnspacing = 1, handlelength = 1, frameon = False)
-	elif 'data' in lines_are:
-		if subplot:
-			ax1 = ds.plot(ax = ax1, legend = False, style = '*', color = colors, zorder = 0)
-		else:
-			ax1 = ds.plot(ax = ax1, legend = False, style = '*', color = colors)
-			leg = ax1.legend(ds,labelspacing = 0, ncol = 2, columnspacing = 1, handlelength = 1, loc = 'best', frameon = False)
-	elif 'fitted' in lines_are:
-		for piece, first in _frame_spans(ds, scattercut, equal_energy_bin is not None):
-			piece.plot(ax = ax1, legend = False, style = '-', color = colors, alpha = 0.7,
-					   lw = linewidth, **({} if first else {'label': '_nolegend_'}))
-		if not subplot:leg = ax1.legend(ds,title = 'lines = fit', loc = 'best', labelspacing = 0, ncol = 2, columnspacing = 1, handlelength = 1, frameon = False)
+	_draw_traces(panel, ax1)
+	if not subplot:
+		leg = ax1.legend(ds, title = panel.legend_title, loc='best', labelspacing = 0, ncol = 2,
+						 columnspacing = 1, handlelength = 1, frameon = False)
 	if not subplot:
 		if text_in_legend is not None:
 			stringen=leg.get_title().get_text()
