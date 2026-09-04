@@ -86,6 +86,7 @@ from KiMoPack import regions as _regions  # noqa: E402
 from KiMoPack.regions import cut_pairs as _cut_pairs  # noqa: E402
 from KiMoPack.regions import frame_spans as _frame_spans  # noqa: E402
 from KiMoPack.kinetics import models as _models  # noqa: E402
+from KiMoPack.figures.settings import ViewSettings as _ViewSettings  # noqa: E402
 from KiMoPack.shaping import DataSelection as _DataSelection  # noqa: E402
 from KiMoPack.shaping import sub_ds  # noqa: E402
 from KiMoPack.chirp import apply_chirp as _apply_chirp  # noqa: E402
@@ -5524,16 +5525,22 @@ class TA():	# object wrapper for the whole
 				title=self.filename
 			else:
 				title=filename
-		r=plot_raw(ds=ds, plotting=plotting, cmap=cmap, line_colors=line_colors, title=title, path=path, filename=filename, 
-				intensity_range=self.intensity_range, log_scale=self.log_scale, baseunit=self.baseunit, 
-				timelimits=self.timelimits, scattercut=self.scattercut, bordercut=self.bordercut, 
-				wave_nm_bin=self.wave_nm_bin, rel_wave=self.rel_wave, width=self.wavelength_bin, 
-				time_width_percent=self.time_width_percent, ignore_time_region=self.ignore_time_region, 
-				time_bin=self.time_bin, rel_time=self.rel_time, save_figures_to_folder=self.save_figures_to_folder, 
-				savetype=savetype,plot_type=scale_type,lintresh=self.lintresh, linscale=self.linscale, times=times, 
-				print_click_position = print_click_position, data_type = self.data_type, 
-				plot_second_as_energy = plot_second_as_energy, units=self.units, equal_energy_bin = self.equal_energy_bin,
-				return_figures_handles=return_figures_handles,values=values,legend_inside=self.legend_inside)
+		view = _ViewSettings.from_project(self, cmap=cmap, line_colors=line_colors)
+		selection = _DataSelection.from_project(self)
+		r=plot_raw(ds=ds, plotting=plotting, title=title, path=path, filename=filename,
+				rel_wave=self.rel_wave, width=self.wavelength_bin, rel_time=self.rel_time,
+				time_width_percent=self.time_width_percent,
+				save_figures_to_folder=self.save_figures_to_folder,
+				savetype=savetype, plot_type=scale_type, times=times,
+				print_click_position=print_click_position,
+				plot_second_as_energy=plot_second_as_energy,
+				return_figures_handles=return_figures_handles,
+				**selection.as_kwargs('timelimits', 'scattercut', 'bordercut',
+									  'ignore_time_region', 'wave_nm_bin', 'time_bin',
+									  'equal_energy_bin'),
+				**view.as_kwargs('cmap', 'line_colors', 'intensity_range', 'log_scale',
+								 'baseunit', 'lintresh', 'linscale', 'data_type', 'units',
+								 'legend_inside', 'values'))
 		if return_figures_handles:
 			return r
 
@@ -6596,19 +6603,23 @@ class TA():	# object wrapper for the whole
 			else:
 				title=filename
 		if not hasattr(plotting,"__iter__"):plotting=[plotting]
-		returning_dict=plot_fit_output(self.re, self.ds, cmap = cmap, line_colors=line_colors, plotting = plotting, title = title, 
-						path = path, f = filename, intensity_range = self.intensity_range, 
-						log_scale = self.log_scale, baseunit = self.baseunit, timelimits = self.timelimits, 
-						scattercut = self.scattercut, bordercut = self.bordercut, 
-						error_matrix_amplification = self.error_matrix_amplification, 
-						wave_nm_bin = self.wave_nm_bin, rel_wave = self.rel_wave, width = self.wavelength_bin, 
-						rel_time = self.rel_time, save_figures_to_folder = self.save_figures_to_folder, 
-						log_fit = self.log_fit,mod = self.mod, savetype = savetype, values=values,
-						time_width_percent = self.time_width_percent, evaluation_style = evaluation_style, 
-						filename = self.filename, scale_type = scale_type, patches = patches, lintresh = self.lintresh, linscale=self.linscale,
-						print_click_position = print_click_position, ignore_time_region = self.ignore_time_region,
-						data_type = self.data_type, plot_second_as_energy = plot_second_as_energy, units= self.units, 
-						equal_energy_bin = self.equal_energy_bin, return_figures_handles=return_figures_handles,legend_inside=self.legend_inside)
+		view = _ViewSettings.from_project(self, cmap=cmap, line_colors=line_colors)
+		selection = _DataSelection.from_project(self)
+		returning_dict=plot_fit_output(self.re, self.ds, plotting = plotting, title = title,
+						path = path, f = filename, filename = self.filename,
+						rel_wave = self.rel_wave, width = self.wavelength_bin, rel_time = self.rel_time,
+						time_width_percent = self.time_width_percent,
+						save_figures_to_folder = self.save_figures_to_folder,
+						log_fit = self.log_fit, mod = self.mod, savetype = savetype,
+						evaluation_style = evaluation_style, scale_type = scale_type, patches = patches,
+						print_click_position = print_click_position,
+						plot_second_as_energy = plot_second_as_energy,
+						return_figures_handles = return_figures_handles,
+						**selection.as_kwargs('timelimits', 'scattercut', 'bordercut',
+											  'ignore_time_region', 'wave_nm_bin', 'equal_energy_bin'),
+						**view.as_kwargs('cmap', 'line_colors', 'intensity_range', 'log_scale',
+									 'baseunit', 'lintresh', 'linscale', 'data_type', 'units',
+									 'legend_inside', 'error_matrix_amplification', 'values'))
 		if return_figures_handles:
 			return returning_dict
 

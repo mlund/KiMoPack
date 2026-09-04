@@ -288,9 +288,15 @@ class DataSelection:
         """A copy with some fields changed."""
         return dataclasses.replace(self, **changes)
 
-    def as_kwargs(self):
-        """The fields as the keyword arguments :func:`sub_ds` expects."""
-        return {f.name: getattr(self, f.name) for f in dataclasses.fields(self)}
+    def as_kwargs(self, *names):
+        """The fields as keyword arguments, all of them or just the named ones.
+
+        Drawing functions accept different subsets, so a caller asks for what
+        the function it is calling actually takes.
+        """
+        if not names:
+            names = [f.name for f in dataclasses.fields(self)]
+        return {name: getattr(self, name) for name in names}
 
     def apply(self, ds, **extraction):
         """Crop, bin and mask ``ds``.
