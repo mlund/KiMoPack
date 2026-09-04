@@ -74,6 +74,18 @@ class Image:
     limits: object = None
     colormap: object = None
     colorbar_label: object = None
+    #: Compress the colour scale logarithmically either side of zero. Transient
+    #: signals span orders of magnitude and change sign, so a linear scale
+    #: shows the strongest feature and nothing else.
+    log_scale: bool = False
+    #: How much of the colour range the near-zero linear part gets.
+    linscale: float = 1
+
+    def __post_init__(self):
+        if self.values.shape != (len(self.y), len(self.x)):
+            raise ValueError(
+                f"image is {self.values.shape} but the axes are "
+                f"{len(self.y)} by {len(self.x)}")
 
 
 @dataclasses.dataclass(frozen=True)
@@ -85,9 +97,11 @@ class Panel:
     traces: tuple = ()
     image: object = None
     title: object = None
-    #: Regions masked out of the data, shaded so the panel does not imply
+    #: Regions masked out along x, shaded so the panel does not imply
     #: measurements where none were kept.
     shaded: tuple = ()
+    #: The same along y. A map masks in both directions; a line plot only in x.
+    shaded_y: tuple = ()
     legend_title: object = None
 
     def legend_labels(self):

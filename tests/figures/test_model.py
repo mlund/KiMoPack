@@ -10,7 +10,7 @@ import unittest
 
 import numpy as np
 
-from KiMoPack.figures.model import AxisSpec, Figure, Panel, Trace
+from KiMoPack.figures.model import AxisSpec, Figure, Image, Panel, Trace
 
 
 class Traces(unittest.TestCase):
@@ -91,3 +91,28 @@ class Figures(unittest.TestCase):
         panel = Panel(x=AxisSpec(label="nm"), y=AxisSpec(label="OD"))
         with self.assertRaises(ValueError):
             Figure(panels=(panel,) * 5, name="x", layout=(2, 2))
+
+
+class Images(unittest.TestCase):
+    def test_an_image_carries_its_grid_and_colour_limits(self):
+        image = Image(values=np.zeros((3, 4)), x=np.arange(4.0), y=np.arange(3.0),
+                      limits=(-1, 1), colormap="seismic")
+        self.assertEqual(image.values.shape, (3, 4))
+        self.assertEqual(image.limits, (-1, 1))
+
+    def test_the_grid_must_match_the_axes(self):
+        """A transposed array would otherwise draw a plausible wrong picture."""
+        with self.assertRaises(ValueError):
+            Image(values=np.zeros((3, 4)), x=np.arange(3.0), y=np.arange(4.0))
+
+    def test_a_map_can_be_masked_in_both_directions(self):
+        panel = Panel(x=AxisSpec(label="nm"), y=AxisSpec(label="ps"),
+                      shaded=((450.0, 470.0),), shaded_y=((1.0, 5.0),))
+        self.assertEqual(len(panel.shaded), 1)
+        self.assertEqual(len(panel.shaded_y), 1)
+
+    def test_a_colour_scale_can_be_logarithmic(self):
+        image = Image(values=np.zeros((2, 2)), x=np.arange(2.0), y=np.arange(2.0),
+                      log_scale=True, linscale=2)
+        self.assertTrue(image.log_scale)
+        self.assertEqual(image.linscale, 2)

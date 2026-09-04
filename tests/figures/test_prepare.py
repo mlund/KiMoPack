@@ -168,3 +168,88 @@ class KineticsPanel(NumericTestCase):
         panel = self._panel()
         self.assertAllClose(panel.x.limits,
                             [self.ds.index.values.min(), self.ds.index.values.max()])
+
+
+class MapPanel(NumericTestCase):
+    """The measurement as a 2D map."""
+
+    def setUp(self):
+        self.ds, _ = make_dataset()
+        self.view = ViewSettings(data_type="dOD", cmap=plt.get_cmap("seismic"),
+                                 lintresh=0.3, linscale=1)
+
+    def _panel(self, selection=None, **kwargs):
+        from KiMoPack.figures.prepare import map_panel
+
+        return map_panel(self.ds, selection or DataSelection(), self.view, **kwargs)
+
+    def test_the_map_matches_the_axes(self):
+        panel = self._panel()
+        self.assertEqual(panel.image.values.shape,
+                         (len(panel.image.y), len(panel.image.x)))
+
+    def test_colour_limits_are_centred_on_zero(self):
+        """A difference signal has to keep zero in the middle of the scale."""
+        low, high = self._panel().image.limits
+        self.assertAlmostEqual(low, -high)
+
+    def test_an_explicit_range_is_used(self):
+        view = ViewSettings(intensity_range=[-2e-3, 3e-3], cmap=plt.get_cmap("seismic"))
+        from KiMoPack.figures.prepare import map_panel
+        panel = map_panel(self.ds, DataSelection(), view)
+        self.assertEqual(list(panel.image.limits), [-2e-3, 3e-3])
+
+    def test_masked_wavelengths_are_shaded_across(self):
+        panel = self._panel(selection=DataSelection(scattercut=[[450, 470], [600, 620]]))
+        self.assertEqual(len(panel.shaded), 2)
+        self.assertEqual(len(panel.shaded_y), 0)
+
+    def test_masked_delays_are_shaded_down(self):
+        panel = self._panel(selection=DataSelection(ignore_time_region=[[1, 5]]))
+        self.assertEqual(len(panel.shaded_y), 1)
+        self.assertEqual(len(panel.shaded), 0)
+
+    def test_shading_snaps_to_the_surviving_data(self):
+        """The gap to cover is between the points either side, not the typed numbers."""
+        panel = self._panel(selection=DataSelection(scattercut=[[452, 468]]))
+        start, stop = panel.shaded[0]
+        self.assertLessEqual(start, 452)
+        self.assertGreaterEqual(stop, 468)
+
+    def test_a_cut_outside_the_data_is_skipped(self):
+        self.assertEqual(self._panel(selection=DataSelection(scattercut=[[10, 20]])).shaded, ())
+
+    def test_the_colour_scale_can_be_logarithmic(self):
+        view = ViewSettings(log_scale=True, cmap=plt.get_cmap("seismic"), linscale=2)
+        from KiMoPack.figures.prepare import map_panel
+        panel = map_panel(self.ds, DataSelection(), view)
+        self.assertTrue(panel.image.log_scale)
+        self.assertEqual(panel.image.linscale, 2)
+
+    def test_the_delay_axis_is_symmetric_log(self):
+        self.assertEqual(self._panel().y.scale, "symlog")
+
+
+class RenderingAMap(NumericTestCase):
+    def setUp(self):
+        self.ds, _ = make_dataset()
+        self.view = ViewSettings(cmap=plt.get_cmap("seismic"))
+        self.addCleanup(plt.close, "all")
+
+    def _draw(self, selection=None):
+        from KiMoPack.figures.mpl import draw_image
+        from KiMoPack.figures.prepare import map_panel
+
+        panel = map_panel(self.ds, selection or DataSelection(), self.view)
+        fig, ax = plt.subplots()
+        return draw_image(panel, ax), ax
+
+    def test_the_map_reaches_the_axis(self):
+        mesh, ax = self._draw()
+        self.assertIsNotNone(mesh)
+        self.assertEqual(len(ax.collections), 1)
+
+    def test_both_masked_directions_are_shaded(self):
+        mesh, ax = self._draw(DataSelection(scattercut=[[450, 470]],
+                                            ignore_time_region=[[1, 5]]))
+        self.assertEqual(len(ax.patches), 2)

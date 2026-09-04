@@ -6,9 +6,41 @@ decides *what* to draw does.
 
 import matplotlib.pyplot as plt
 import numpy as np
+from matplotlib.colors import Normalize, SymLogNorm
 
 #: Trace styles as matplotlib format strings.
 _STYLES = {"solid": "-", "dashed": "--", "markers": "*"}
+
+
+def draw_image(panel, ax, shading="auto"):
+    """Draw a panel's 2D map and its masked regions; returns the mesh.
+
+    The mask is painted in the colour the map uses for zero, so a blanked
+    region reads as "nothing here" rather than as a feature.
+    """
+    image = panel.image
+    low, high = min(image.limits), max(image.limits)
+    if image.log_scale:
+        norm = SymLogNorm(abs(high - low) / 100, linscale=image.linscale, vmin=low, vmax=high)
+    else:
+        norm = Normalize(vmin=low, vmax=high)
+
+    grid_x, grid_y = np.meshgrid(image.x, image.y)
+    mesh = ax.pcolormesh(grid_x, grid_y, image.values, norm=norm, cmap=image.colormap,
+                         shading=shading)
+
+    zero_colour = image.colormap(0.5)
+    for start, stop in panel.shaded:
+        ax.add_patch(plt.Rectangle((start, image.y.min()),
+                                   height=abs(ax.get_ylim()[1] - ax.get_ylim()[0]),
+                                   width=abs(stop - start), facecolor=zero_colour, alpha=1))
+    for start, stop in panel.shaded_y:
+        anchor = image.x.max() if panel.x.limits and panel.x.limits[0] > panel.x.limits[1] \
+            else image.x.min()
+        ax.add_patch(plt.Rectangle((anchor, start),
+                                   width=abs(ax.get_xlim()[1] - ax.get_xlim()[0]),
+                                   height=abs(stop - start), facecolor=zero_colour, alpha=1))
+    return mesh
 
 
 def draw_traces(panel, ax):

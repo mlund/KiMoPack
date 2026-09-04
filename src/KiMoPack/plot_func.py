@@ -86,9 +86,11 @@ from KiMoPack import regions as _regions  # noqa: E402
 from KiMoPack.regions import cut_pairs as _cut_pairs  # noqa: E402
 from KiMoPack.regions import frame_spans as _frame_spans  # noqa: E402
 from KiMoPack.kinetics import models as _models  # noqa: E402
+from KiMoPack.figures.mpl import draw_image as _draw_image  # noqa: E402
 from KiMoPack.figures.mpl import draw_traces as _draw_traces  # noqa: E402
 from KiMoPack.figures.prepare import delays_within as _delays_within  # noqa: E402
 from KiMoPack.figures.prepare import kinetics_panel as _kinetics_panel  # noqa: E402
+from KiMoPack.figures.prepare import map_panel as _map_panel  # noqa: E402
 from KiMoPack.figures.prepare import spectra_panel as _spectra_panel  # noqa: E402
 from KiMoPack.figures.settings import ViewSettings as _ViewSettings  # noqa: E402
 from KiMoPack.shaping import DataSelection as _DataSelection  # noqa: E402
@@ -1215,73 +1217,15 @@ def plot2d(ds, ax = None, title = None, intensity_range = None, baseunit = 'ps',
 	selection = _DataSelection(scattercut=scattercut, bordercut=bordercut, timelimits=timelimits,
 							   wave_nm_bin=wave_nm_bin, wavelength_bin=wavelength_bin, time_bin=time_bin,
 							   ignore_time_region=ignore_time_region, equal_energy_bin=equal_energy_bin)
-	ds = selection.apply(ds, wavelength=None, drop_scatter=False, drop_ignore=False,
-						 from_fit=from_fit)
-	if intensity_range is None:
-		try:
-			maxim=max([abs(ds.values.min()),abs(ds.values.max())])
-			intensity_range=[-maxim,maxim]
-		except:
-			intensity_range=[-1e-2,1e-2]
-	else:
-		if not hasattr(intensity_range,'__iter__'):#lets have an lazy option
-			intensity_range=[-intensity_range,intensity_range]
-		else:
-					   
-			if log_scale:print('I highly recommend to make a symmetric intensity distribution for logarithmic scale, the colorbar might look strange otherwise')
-	if log_scale: 
-		if 0:# old manual symlog
-			bounds0 = list(-1*np.logspace(np.log10(-intensity_range[0]), np.log10(-intensity_range[0]/(levels/2)), levels))
-			bounds1 = np.logspace(np.log10(intensity_range[1]/(levels/2)),np.log10(intensity_range[1]),	 levels)
-			bounds0.append(0)
-			for a in bounds1:
-				bounds0.append(a)
-			norm = BoundaryNorm(boundaries=bounds0, ncolors=len(bounds0))
-			mid_color=colm(k=range(levels),cmap=cmap)
-		else:
-			norm=SymLogNorm(abs(max(intensity_range)-min(intensity_range))/100, linscale=linscale, vmin=min(intensity_range), vmax=max(intensity_range), clip=True, base=10)
-			mid_color=cmap(0.5)
-	else:
-		if 0:
-			nbins=levels
-			levels = LinearLocator(numticks=levels).tick_values(vmin=min(intensity_range), vmax=max(intensity_range))
-			norm = BoundaryNorm(levels,clip=True,ncolors=cmap.N)
-			mid_color_index=find_nearest_index(0,levels)
-			mid_color=colm(k=range(nbins),cmap=cmap)
-			mid_color=mid_color[mid_color_index]
-		else:
-			norm = Normalize(vmin=min(intensity_range),vmax=max(intensity_range))
-			mid_color=cmap(0.5)
-	#print(ds.head())
-	x = ds.columns.values.astype('float')
-	y = ds.index.values.astype('float')
-	X, Y = np.meshgrid(x, y)
-	img=ax.pcolormesh(X,Y,ds.values,norm=norm,cmap=cmap,shading=shading)
-	#img=ax.pcolormesh(X,Y,ds.values,cmap=cmap,shading=shading)
-	ds.index = ds.index.astype(float)
-	for low, high in _cut_pairs(ignore_time_region):
-		try:
-			lower = ds.loc[:low, :].index.values.max()
-			upper = ds.loc[high:, :].index.values.min()
-		except ValueError:
-			continue
-		# On an energy axis the wavelengths run the other way, so the patch
-		# is anchored at the far edge.
-		anchor = x.max() if equal_energy_bin is not None else x.min()
-		ax.add_patch(plt.Rectangle((anchor, lower),
-								   width=abs(ax.get_xlim()[1]-ax.get_xlim()[0]),
-								   height=abs(upper-lower), facecolor=mid_color, alpha=1))
+	view = _ViewSettings(intensity_range=intensity_range, log_scale=log_scale, cmap=cmap,
+						 data_type=data_type, lintresh=lintresh, linscale=linscale)
+	panel = _map_panel(ds, selection, view, plot_type=plot_type, from_fit=from_fit)
+	if log_scale and hasattr(intensity_range, '__iter__'):
+		print('I highly recommend to make a symmetric intensity distribution for logarithmic plotting')
+	intensity_range = panel.image.limits
+	x, y = panel.image.x, panel.image.y
+	img = _draw_image(panel, ax, shading=shading)
 
-	# Grey out what was masked, so the map does not imply data where none was kept.
-	for low, high in _cut_pairs(scattercut, equal_energy_bin is not None):
-		try:
-			lower = ds.loc[:, :low].columns.values.max()
-			upper = ds.loc[:, high:].columns.values.min()
-		except ValueError:
-			continue  # the cut falls outside the plotted range
-		ax.add_patch(plt.Rectangle((lower, y.min()),
-								   height=abs(ax.get_ylim()[1]-ax.get_ylim()[0]),
-								   width=abs(upper-lower), facecolor=mid_color, alpha=1))
 	if use_colorbar:
 		mid=(intensity_range[1]+intensity_range[0])/2
 		if values is None:
@@ -1348,8 +1292,8 @@ def plot2d(ds, ax = None, title = None, intensity_range = None, baseunit = 'ps',
 	if equal_energy_bin is not None and False:
 		temp=np.array(ax.get_xlim())
 		ax.set_xlim(temp.max(),temp.min())
-	ax.set_xlabel(ds.columns.name)
-	ax.set_ylabel(ds.index.name)
+	ax.set_xlabel(panel.x.label)
+	ax.set_ylabel(panel.y.label)
 	if title:
 		ax.set_title(title)	
 	if ax_ori:return ax

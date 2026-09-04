@@ -9,7 +9,7 @@ import numpy as np
 
 from ..numerics import Frame_golay, nm_to_ev
 from ..regions import cut_pairs, frame_spans
-from .model import AxisSpec, Panel, Trace
+from .model import AxisSpec, Image, Panel, Trace
 
 #: How the three line modes are drawn. 'data' shows the measurement as
 #: markers; the other two are continuous curves.
@@ -168,4 +168,68 @@ def kinetics_panel(ds, selection, view, colors, wavelength=None, lines_are="smoo
         title=title,
         shaded=tuple(cut_pairs(selection.ignore_time_region)) if shade_masked else (),
         legend_title=LEGEND_TITLES[line_mode(lines_are)],
+    )
+
+
+def symmetric_range(intensity_range, values=None):
+    """Colour or intensity limits as a pair, centred on zero.
+
+    A single number is the lazy form for "plus and minus this much". With
+    nothing given, the largest excursion in the data is used, so a difference
+    signal stays centred on zero rather than being scaled to its own extremes.
+    """
+    if intensity_range is None:
+        if values is None or not values.size:
+            return [-1e-2, 1e-2]
+        try:
+            largest = max(abs(np.nanmin(values)), abs(np.nanmax(values)))
+        except (ValueError, TypeError):
+            return [-1e-2, 1e-2]
+        return [-largest, largest]
+    if not hasattr(intensity_range, "__iter__"):
+        return [-intensity_range, intensity_range]
+    return list(intensity_range)
+
+
+def _masked_edges(index, cuts, to_energy=False):
+    """Masked regions snapped to the data points that bound them.
+
+    The patch has to cover the gap the mask actually left, which is between
+    the last surviving point before it and the first one after — not between
+    the numbers the user typed.
+    """
+    edges = []
+    for low, high in cut_pairs(cuts, to_energy):
+        before = index[index <= low]
+        after = index[index >= high]
+        if not len(before) or not len(after):
+            continue  # the cut falls outside the plotted range
+        edges.append((float(before.max()), float(after.min())))
+    return tuple(edges)
+
+
+def map_panel(ds, selection, view, plot_type="symlog", from_fit=False, title=None):
+    """The measurement as a 2D map: wavelength across, delay down, signal in colour."""
+    sliced = selection.apply(ds, wavelength=None, drop_scatter=False, drop_ignore=False,
+                             from_fit=from_fit)
+    to_energy = selection.equal_energy_bin is not None
+    x = sliced.columns.values.astype(float)
+    y = sliced.index.values.astype(float)
+    limits = symmetric_range(view.intensity_range, sliced.values)
+
+    border = selection.bordercut
+    if border is not None and to_energy:
+        border = sorted(nm_to_ev(border))
+
+    return Panel(
+        x=AxisSpec(label=sliced.columns.name, limits=border),
+        y=_time_axis(plot_type, list(selection.timelimits) if selection.timelimits is not None
+                     else [float(y.min()), float(y.max())],
+                     view.lintresh, view.linscale, sliced.index.name),
+        image=Image(values=sliced.values, x=x, y=y, limits=limits, colormap=view.cmap,
+                    colorbar_label=view.data_type, log_scale=bool(view.log_scale),
+                    linscale=view.linscale),
+        shaded=_masked_edges(sliced.columns.values.astype(float), selection.scattercut, to_energy),
+        shaded_y=_masked_edges(sliced.index.values.astype(float), selection.ignore_time_region),
+        title=title,
     )
