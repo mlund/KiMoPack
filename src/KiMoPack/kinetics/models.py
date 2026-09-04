@@ -106,11 +106,12 @@ def build_sequential(times, pardf, sub_steps=None):
     c = np.zeros((len(times), n_decays), dtype="float")
     gs = np.zeros((len(times), 1), dtype="float") if explicit_gs else None
 
+    # Allocated once: every element is overwritten on each pass below.
+    dc = np.zeros(n_decays, dtype="float")
     for i in range(1, len(times)):
         dt = (times[i] - times[i - 1]) / sub_steps
         c_temp = c[i - 1, :]
         for _ in range(int(sub_steps)):
-            dc = np.zeros(n_decays, dtype="float")
             for level in range(n_decays):
                 if level == 0:
                     # The pulse feeds the first species only.
@@ -160,6 +161,18 @@ register(KineticModel(name="consecutive", build=build_sequential, species_are="S
          aliases=["sequential"])
 register(KineticModel(name="full_consecutive", build=build_sequential, species_are="SAS"),
          aliases=["full_sequential"])
+
+
+def reports_progress(mod):
+    """True when a fit with this model is slow enough to be worth narrating.
+
+    The cheap analytic models converge in well under a second, so printing
+    their running error just fills the notebook. Asking the registry rather
+    than comparing names means an alias, or a user's own model, is judged the
+    same way as its canonical spelling.
+    """
+    model = resolve_model(mod)
+    return model.optimise_with is not None or model.build is not build_parallel
 
 
 def available_models():

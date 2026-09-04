@@ -112,6 +112,7 @@ from KiMoPack.kinetics.parameters import (  # noqa: E402
 	pardf_to_par,
 	pardf_to_timedf,
 )
+from KiMoPack.numerics import nm_to_ev as _nm_to_ev  # noqa: E402
 from KiMoPack.numerics import (  # noqa: E402
 	Frame_golay,
 	find_nearest,
@@ -1339,7 +1340,7 @@ def plot2d(ds, ax = None, title = None, intensity_range = None, baseunit = 'ps',
 	if bordercut is not None:
 		try:
 			if equal_energy_bin is not None:
-				bordercut=[scipy.constants.h*scipy.constants.c/(a*1e-9*scipy.constants.electron_volt) for a in bordercut]
+				bordercut=[_nm_to_ev(a) for a in bordercut]
 			ax.set_xlim(bordercut[0],bordercut[1])
 		except:
 			print('bordercut failed')
@@ -1898,7 +1899,7 @@ def plot_fit_output( re, ds, cmap = None, line_colors = None, plotting = range(7
 			colors=colm(range(n_colors),cmap=line_colors)
 		DAC=re['DAC']
 		if equal_energy_bin is not None:# we work with optical data but want to bin in equal energy
-			DAC.index=scipy.constants.h*scipy.constants.c/(DAC.index.values*1e-9*scipy.constants.electron_volt)
+			DAC.index=_nm_to_ev(DAC.index.values)
 			DAC.index.name='Energy in eV'
 			DAC.columns.name='Energy in eV'
 			DAC.sort_index(axis=0,inplace=True,ascending=False)
@@ -2076,7 +2077,7 @@ def plot_fit_output( re, ds, cmap = None, line_colors = None, plotting = range(7
 						plot_second_as_energy = plot_second_as_energy, units = units, equal_energy_bin = equal_energy_bin, from_fit = True )
 		try:
 			if equal_energy_bin is not None:
-				bordercut=[scipy.constants.h*scipy.constants.c/(a*1e-9*scipy.constants.electron_volt) for a in bordercut]
+				bordercut=[_nm_to_ev(a) for a in bordercut]
 			ax4.set_xlim(bordercut)
 		except:
 			pass
@@ -2645,11 +2646,9 @@ def plot_time(ds, ax = None, rel_time = None, time_width_percent = 10, ignore_ti
 	panel = _spectra_panel(ds, selection, view, colors, rel_time=rel_time,
 						   time_width_percent=time_width_percent, lines_are=lines_are,
 						   linewidth=linewidth, from_fit=from_fit, behind=subplot)
-	ds = selection.apply(ds, times=rel_time, time_width_percent=time_width_percent,
-						 drop_scatter=True, from_fit=from_fit)
 	_draw_traces(panel, ax1)
 	if not subplot:
-		leg = ax1.legend(ds, title = panel.legend_title, loc='best', labelspacing = 0, ncol = 2,
+		leg = ax1.legend(panel.legend_labels(), title = panel.legend_title, loc='best', labelspacing = 0, ncol = 2,
 						 columnspacing = 1, handlelength = 1, frameon = False)
 	if not subplot:
 		if text_in_legend is not None:
@@ -2663,7 +2662,7 @@ def plot_time(ds, ax = None, rel_time = None, time_width_percent = 10, ignore_ti
 		ax1.autoscale(axis='x',tight=True)
 	else:
 		if equal_energy_bin is not None:
-			bordercut=[scipy.constants.h*scipy.constants.c/(a*1e-9*scipy.constants.electron_volt) for a in bordercut]
+			bordercut=[_nm_to_ev(a) for a in bordercut]
 			#bordercut=bordercut[::-1]
 		ax1.set_xlim(bordercut)	
 	if (not subplot) and plot_second_as_energy:
@@ -2671,9 +2670,9 @@ def plot_time(ds, ax = None, rel_time = None, time_width_percent = 10, ignore_ti
 		ax2.set_xlim(ax1.get_xlim())
 		ax2.set_xticks(ax1.get_xticks())
 		if equal_energy_bin is not None:
-			labels=['%.1f'%(scipy.constants.h*scipy.constants.c/(a*1e-9*scipy.constants.electron_volt)) for a in ax2.get_xticks()]
+			labels=['%.1f'%(_nm_to_ev(a)) for a in ax2.get_xticks()]
 		else:
-			labels=['%.2f'%(scipy.constants.h*scipy.constants.c/(a*1e-9*scipy.constants.electron_volt)) for a in ax2.get_xticks()]
+			labels=['%.2f'%(_nm_to_ev(a)) for a in ax2.get_xticks()]
 		_=ax2.set_xticklabels(labels)
 		if equal_energy_bin is not None:
 			_=ax2.set_xlabel('Wavelength in nm')
@@ -2689,7 +2688,7 @@ def plot_time(ds, ax = None, rel_time = None, time_width_percent = 10, ignore_ti
 				ax1.set_title(title,pad=10)
 		ax1.set_ylabel(data_type)
 		ax1.yaxis.set_major_formatter(FuncFormatter(lambda x, pos: '%.2g'%(x)))
-		ax1.set_xlabel(ds.index.name)
+		ax1.set_xlabel(panel.x.label)
 		ax1.minorticks_on()
 		#ax1.xaxis.set_minor_locator(AutoMinorLocator(6))
 		ax1.plot(ax1.get_xlim(),[0,0],color='black',lw=0.5,zorder=0, label='_nolegend_')
@@ -2871,7 +2870,6 @@ def plot1d(ds = None, wavelength = None, width = None, ax = None, subplot = Fals
 	panel = _kinetics_panel(ds, selection, view, colors, wavelength=wavelength,
 							lines_are=lines_are, linewidth=linewidth, from_fit=from_fit,
 							plot_type=plot_type, timelimits=timelimits, behind=subplot)
-	ds = selection.apply(ds, wavelength=wavelength, drop_ignore=True, from_fit=from_fit)
 	_draw_traces(panel, ax1)
 	#Legend
 	if not subplot:
@@ -2962,7 +2960,7 @@ def plot1d(ds = None, wavelength = None, width = None, ax = None, subplot = Fals
 			ax1.plot([lintresh,lintresh],ax1.get_ylim(),color='black',linestyle='dashed',alpha=0.5, label='_nolegend_')
 			ax1.plot([-lintresh,-lintresh],ax1.get_ylim(),color='black',linestyle='dashed',alpha=0.5, label='_nolegend_')
 				
-	ax1.set_xlabel(ds.index.name)
+	ax1.set_xlabel(panel.x.label)
 	ax1.set_ylabel(data_type)		
 	#ax1.set_xlabel('time in %s'%baseunit)
 	#ax1.set_ylabel('differential Absorption in $\mathregular{\Delta OD}$')
@@ -3649,7 +3647,7 @@ def err_func(paras, ds, mod = 'paral', final = False, log_fit = False, dump_para
 	if final:
 		return re
 
-	if not isinstance(mod, str) or mod not in ['paral','exponential','consecutive']:
+	if _models.reports_progress(mod):
 		_report_progress(pardf, re, write_paras, quiet_seconds=10 if isinstance(mod, str) else 30)
 	if dump_shapes:
 		re['c'].to_csv(path_or_buf=filename + '_c')
@@ -3908,7 +3906,9 @@ def _split_stacked_result(re, heights, par_stack, filename):
 	return_listen = []
 	for i, height in enumerate(heights):
 		lower = int(np.array(heights)[:i].sum())
-		re_local = {key: re[key].copy().iloc[lower:lower + height, :]
+		# Slice first, then copy: copying the whole stacked matrix per key
+		# per project and discarding most of it is quadratic in projects.
+		re_local = {key: re[key].iloc[lower:lower + height, :].copy()
 					for key in ['A', 'AC', 'AE', 'c']}
 		re_local['DAC'] = re['DAC'].copy()
 		re_local['error'] = (re_local['AE'] ** 2).sum().sum()
@@ -4476,7 +4476,7 @@ class TA():	# object wrapper for the whole
 		self.ds_ori.columns=self.ds_ori.columns.astype('float')#Make columns indexes numbers
 		self.ds_ori.index=self.ds_ori.index.astype('float')#Make row indexes numbers
 		if index_is_energy:
-			self.ds_ori.index=scipy.constants.h*scipy.constants.c/(self.ds_ori.index*1e-9*scipy.constants.electron_volt)
+			self.ds_ori.index=_nm_to_ev(self.ds_ori.index)
 															  
 		if transpose:
 			self.ds_ori=self.ds_ori.T
@@ -5294,6 +5294,9 @@ class TA():	# object wrapper for the whole
 				self.width=width
 				self.lintresh=lintresh
 				self.time_width_percent=time_width_percent
+				# Smoothing the whole matrix does not depend on the cursor, so it
+				# is done once here rather than twice per mouse event.
+				self.smoothed=Frame_golay(ds, window=5, order=3)
 				
 				
 				self.ax = plot2d(ds=ds, ax=self.ax, cmap=cmap, intensity_range=self.intensity_range, 
@@ -5314,13 +5317,13 @@ class TA():	# object wrapper for the whole
 				
 				x, y = event.xdata, event.ydata
 				if self.equal_energy_bin is not None:
-					x=scipy.constants.h*scipy.constants.c/(x*1e-9*scipy.constants.electron_volt) 
+					x=_nm_to_ev(x) 
 				print('x=%g, y=%g\n'%(x,y))
 			
 			def move(self, event):
 				x, y = event.xdata, event.ydata
 				if self.equal_energy_bin is not None:
-					x=scipy.constants.h*scipy.constants.c/(x*1e-9*scipy.constants.electron_volt) 
+					x=_nm_to_ev(x) 
 				try:
 					self.ax_time.cla()
 				except:
@@ -5330,7 +5333,7 @@ class TA():	# object wrapper for the whole
 											ignore_time_region=self.ignore_time_region,
 											wave_nm_bin=self.wave_nm_bin, wavelength_bin=self.width,
 											equal_energy_bin=self.equal_energy_bin)
-				source = modelled if fitted else Frame_golay(ds, 5, 3)
+				source = modelled if fitted else self.smoothed
 				ds_temp1 = spectra_at.apply(source, times=y,
 											time_width_percent=self.time_width_percent, drop_scatter=True)
 				ds_temp1.plot(ax=self.ax_time, style='-', color='red')
@@ -5357,7 +5360,7 @@ class TA():	# object wrapper for the whole
 				kinetics_at = _DataSelection(scattercut=self.scattercut, bordercut=self.bordercut,
 											 ignore_time_region=self.ignore_time_region,
 											 wave_nm_bin=self.wave_nm_bin, wavelength_bin=self.width)
-				source = modelled if fitted else Frame_golay(ds)
+				source = modelled if fitted else self.smoothed
 				ds_temp1 = kinetics_at.apply(source, wavelength=x, drop_scatter=True)
 				self.ax_kinetic.plot(ds_temp1.values, ds_temp1.index.values, '-',
 									 label='%.0f %s'%(x, 'fitted' if fitted else 'smoothed'), color='red')
@@ -6328,19 +6331,19 @@ class TA():	# object wrapper for the whole
 				if same_DAS:
 					for i,re_local in enumerate(re_listen):
 						for name in ['A','AC','AE']:
-							re_local[name].columns=(scipy.constants.h*scipy.constants.c/(re_local[name].columns.values*1e-9*scipy.constants.electron_volt))
+							re_local[name].columns=(_nm_to_ev(re_local[name].columns.values))
 							re_local[name].columns.name='wavelength in nm'
 							re_local[name].sort_index(inplace=True,axis=1,ascending=True)
-						re_local['DAC'].index=(scipy.constants.h*scipy.constants.c/(re_local['DAC'].index.values*1e-9*scipy.constants.electron_volt))
+						re_local['DAC'].index=(_nm_to_ev(re_local['DAC'].index.values))
 						re_local['DAC'].index.name='wavelength in nm'
 						re_local['DAC'].sort_index(inplace=True,axis=0,ascending=True)
 						re_listen[i]=re_local
 				else:
 					for name in ['A','AC','AE']:
-						re[name].columns=(scipy.constants.h*scipy.constants.c/(re[name].columns.values*1e-9*scipy.constants.electron_volt))
+						re[name].columns=(_nm_to_ev(re[name].columns.values))
 						re[name].columns.name='wavelength in nm'
 						re[name].sort_index(inplace=True,axis=1,ascending=True)
-					re['DAC'].index=(scipy.constants.h*scipy.constants.c/(re['DAC'].index.values*1e-9*scipy.constants.electron_volt))
+					re['DAC'].index=(_nm_to_ev(re['DAC'].index.values))
 					re['DAC'].index.name='wavelength in nm'
 					re['DAC'].sort_index(inplace=True,axis=0,ascending=True)
 		
@@ -6980,15 +6983,18 @@ class TA():	# object wrapper for the whole
 		with h5py.File(hdf5_name, 'w') as f:
 			for key in self.__dict__.keys():
 				if key == 'mod':
-					if self.__dict__[key] in ['paral','exponential','consecutive','full_consecutive']:
-						f.create_dataset(name=key, data=self.__dict__[key])
+					if not callable(self.__dict__[key]):
+						# Store the canonical name, so an alias reloads as the same model.
+						f.create_dataset(name=key, data=_models.resolve_model(self.__dict__[key]).name)
 					else:
-						try:
-							docstring=self.__dict__[key].__doc__
-							if isinstance(docstring,type('hello')):
-								f.create_dataset(name=key, data=docstring)
-						except:
-							f.create_dataset(name=key, data='external_function_without_docstring')
+						# A user model cannot be reloaded, so record what it was: its
+						# docstring if it has one, otherwise its name. Storing nothing
+						# left the saved project with no record of the model at all.
+						docstring = getattr(self.__dict__[key], '__doc__', None)
+						if not isinstance(docstring, str):
+							docstring = getattr(self.__dict__[key], '__name__',
+												'external_function_without_docstring')
+						f.create_dataset(name=key, data=docstring)
 				elif key in ['rel_wave','rel_time']:#need extra, as it is bypassed by the re-switch
 					f.create_dataset(name=key, data=self.__dict__[key])
 				elif key[:2] == 're' :
@@ -7668,7 +7674,7 @@ class TA():	# object wrapper for the whole
 			ax2=ax.twiny()
 			ax2.set_xlim(ax.get_xlim())
 			ax2.set_xticks(ax.get_xticks())
-			labels=['%.2f'%(scipy.constants.h*scipy.constants.c/(a*1e-9*scipy.constants.electron_volt)) for a in ax2.get_xticks()]
+			labels=['%.2f'%(_nm_to_ev(a)) for a in ax2.get_xticks()]
 			_=ax2.set_xticklabels(labels)
 			_=ax2.set_xlabel('Energy in eV')
 			ax.set_zorder(ax2.get_zorder()+1)
@@ -8108,8 +8114,6 @@ class TA():	# object wrapper for the whole
 						a[j].legend(fontsize=8,frameon=False)
 			
 				else:
-					dacs=len(re['DAC'].columns)
-					col=colors[(i+1)*dacs:(i+2)*dacs]	
 					DAC=re['DAC']
 					shade = colors[(i+1)*len(species):(i+2)*len(species)]
 					for piece, first in _frame_spans(DAC, o.scattercut):

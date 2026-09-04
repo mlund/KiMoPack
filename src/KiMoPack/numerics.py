@@ -104,8 +104,10 @@ def Frame_golay(df, window=5, order=3, transpose=False):
         return df.T.copy() if transpose else df.copy()
 
     if isinstance(df, pandas.DataFrame):
+        # One filter call across the whole array rather than one per column.
+        # Same answer, and this runs on every trace of every figure.
         smoothed = pandas.DataFrame(
-            {col: savitzky_golay(df.loc[:, col].values, window, order) for col in df.columns},
+            savgol_filter(df.values, window_length=window, polyorder=order, axis=0),
             index=df.index,
             columns=df.columns,
         )

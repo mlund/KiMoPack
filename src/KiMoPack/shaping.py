@@ -12,14 +12,13 @@ than being reassembled at each call site.
 """
 
 import dataclasses
-import numbers
 
 import numpy as np
 import pandas
 from scipy.stats import binned_statistic
 
 from .numerics import find_nearest_index, nm_to_ev
-from .regions import normalise_cuts
+from .regions import cut_pairs, normalise_cuts
 
 
 def _bin_axis(ds, x, y, width, what):
@@ -56,25 +55,11 @@ def _bin_axis(ds, x, y, width, what):
 def _mask_columns(ds, cuts, drop, to_energy):
     """Blank the named spectral regions, by value lookup on the column axis."""
     x = ds.columns.values.astype("float")
-    for low, high in _cut_pairs(cuts, to_energy):
+    for low, high in cut_pairs(cuts, to_energy):
         lower = find_nearest_index(x, low)
         upper = find_nearest_index(x, high)
         ds.iloc[:, lower:upper] = np.nan if drop else 0
     return ds
-
-
-def _cut_pairs(cuts, to_energy):
-    """Cut regions as pairs, converted to eV when the axis is energy.
-
-    Wavelength and energy run in opposite directions, so a pair given in nm
-    comes back reversed and has to be re-sorted.
-    """
-    if to_energy:
-        if isinstance(cuts[0], numbers.Number):
-            cuts = [list(nm_to_ev(cuts))[::-1]]
-        else:
-            cuts = [list(nm_to_ev(pair))[::-1] for pair in cuts]
-    return normalise_cuts(cuts)
 
 
 def sub_ds(ds, times=None, time_width_percent=0, ignore_time_region=None, drop_ignore=False,

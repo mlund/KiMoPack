@@ -120,7 +120,11 @@ def _prepare_external_spectra(ds, c, ext_spectra, pardf):
 
 
 def _restore_external_spectra(re, c, ext_spectra, pardf):
-    """Put the externally known species back into the reported result."""
+    """Put the externally known species back into the reported result.
+
+    The matrices are only rebuilt when they are present: a mid-fit shape dump
+    carries the spectra but not the full reconstruction.
+    """
     guided = "ext_spectra_guide" in list(pardf.index.values)
     for col in ext_spectra.columns.values:
         if guided:
@@ -128,9 +132,10 @@ def _restore_external_spectra(re, c, ext_spectra, pardf):
         else:
             re["DAC"][col] = ext_spectra.loc[:, col].values
             re["c"][col] = c.loc[:, col].values
-        contribution = _outer_product(c.loc[:, col], ext_spectra.loc[:, col])
-        re["A"] = re["A"] + contribution
-        re["AC"] = re["AC"] + contribution
+        if "A" in re:
+            contribution = _outer_product(c.loc[:, col], ext_spectra.loc[:, col])
+            re["A"] = re["A"] + contribution
+            re["AC"] = re["AC"] + contribution
 
 
 def simulate(ds, pardf, mod, final=False, sub_sample=None, pulse_sample=None,
@@ -172,25 +177,12 @@ def simulate(ds, pardf, mod, final=False, sub_sample=None, pulse_sample=None,
         ds, c_for_solve, ext_spectra = _prepare_external_spectra(ds, c, ext_spectra, pardf)
         re = fill_int(ds=ds, c=c_for_solve, final=final, return_shapes=return_shapes)
 
+    if ext_spectra is not None and (final or return_shapes):
+        _restore_external_spectra(re, c, ext_spectra, pardf)
     if final:
-        if ext_spectra is not None:
-            _restore_external_spectra(re, c, ext_spectra, pardf)
         total = ((re["A"] - re["A"].mean().mean()) ** 2).sum().sum()
         re["r2"] = 1 - re["error"] / total
-    elif return_shapes and ext_spectra is not None:
-        _restore_external_spectra_shapes(re, c, ext_spectra, pardf)
     return re
-
-
-def _restore_external_spectra_shapes(re, c, ext_spectra, pardf):
-    """Spectra-only variant, for dumping shapes mid-fit."""
-    guided = "ext_spectra_guide" in list(pardf.index.values)
-    for col in ext_spectra.columns.values:
-        if guided:
-            re["DAC"][col] = re["DAC"][col] + ext_spectra.loc[:, col].values
-        else:
-            re["DAC"][col] = ext_spectra.loc[:, col].values
-            re["c"][col] = c.loc[:, col].values
 
 
 def project_dataset(ta, slice_settings):
